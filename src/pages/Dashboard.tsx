@@ -279,17 +279,6 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
 
-            {/* Weather Impact Alert */}
-            {/* Removed Weather Advisory section as requested */}
-            <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-amber-900">Weather Advisory</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  Moderate rainfall expected on Wednesday. Consider adjusting irrigation schedule and ensure proper drainage.
-                </p>
-              </div>
-            </div>
           </motion.div>
 
           {/* Crop Suggestions Card */}
