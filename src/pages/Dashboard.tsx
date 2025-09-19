@@ -35,6 +35,26 @@ const Dashboard: React.FC = () => {
   const [showAIModal, setShowAIModal] = useState(false);
   const currentUser = getCurrentUser();
 
+  // Get current date and weekday
+  const getCurrentDateInfo = () => {
+    const now = new Date();
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const weekday = weekdays[now.getDay()];
+    const month = months[now.getMonth()];
+    const day = now.getDate();
+    const year = now.getFullYear();
+    
+    return {
+      weekday,
+      dateString: `${month} ${day}, ${year}`,
+      fullDate: `${weekday}, ${month} ${day}`
+    };
+  };
+
+  const dateInfo = getCurrentDateInfo();
+
   const getWeatherIcon = (condition: string) => {
     switch (condition.toLowerCase()) {
       case 'sunny': return '☀️';
@@ -95,7 +115,14 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <motion.div 
+                className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg font-medium text-sm flex items-center gap-2"
+                whileHover={{ scale: 1.05 }}
+              >
+                <Calendar size={16} />
+                <span>{dateInfo.fullDate}</span>
+              </motion.div>
               <motion.div 
                 className="px-4 py-2 bg-green-100 text-green-800 rounded-lg font-medium text-sm"
                 whileHover={{ scale: 1.05 }}
