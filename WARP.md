@@ -10,10 +10,15 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 npm install --legacy-peer-deps
 
 # Start development server
+npm run dev
+# or
 npm start
 
 # Build for production
 npm run build
+
+# Preview production build locally
+npm run preview
 
 # Run tests
 npm test
@@ -27,8 +32,9 @@ npm test -- src/components/__tests__/ComponentName.test.tsx
 
 ### Development Server
 - Development server runs on `http://localhost:3000`
-- Hot reloading is enabled via `react-scripts`
+- Lightning-fast hot module replacement (HMR) via Vite
 - TailwindCSS builds automatically during development
+- Vite provides instant server startup and optimized builds
 
 ## Project Architecture
 
@@ -40,7 +46,7 @@ npm test -- src/components/__tests__/ComponentName.test.tsx
 - **Charts**: Recharts for data visualization
 - **Icons**: React Icons (Feather Icons & Game Icons)
 - **State Management**: React hooks + localStorage for persistence
-- **Build Tool**: Create React App (react-scripts)
+- **Build Tool**: Vite (lightning-fast build tool and dev server)
 
 ### User Flow Architecture
 The application implements a sophisticated user flow with three distinct user types:
@@ -88,6 +94,33 @@ interface User {
 - Navigation items are conditionally disabled based on `user.hasFarmData`
 - Tutorial completion tracked via `user.hasCompletedTutorial`
 - Route access controlled by user type and completion status
+
+## Vite Configuration
+
+The project uses Vite for fast development and optimized production builds:
+
+**Key Features:**
+- **Fast HMR**: Instant hot module replacement during development
+- **Optimized Builds**: Advanced code splitting and tree-shaking
+- **TypeScript Support**: Built-in TypeScript compilation
+- **Path Aliases**: `@/` mapped to `src/` directory for cleaner imports
+- **Asset Handling**: Automatic optimization of images and static assets
+
+**Configuration** (`vite.config.ts`):
+```typescript
+// Path aliases for cleaner imports
+resolve: {
+  alias: {
+    '@': resolve(__dirname, './src'),
+  },
+}
+
+// Development server on port 3000 (matches CRA)
+server: {
+  port: 3000,
+  open: true,
+}
+```
 
 ## Key Development Guidelines
 
