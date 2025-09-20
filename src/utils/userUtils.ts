@@ -1,3 +1,5 @@
+import { Location } from '../types/weather';
+
 export interface User {
   id: string;
   name: string;
@@ -10,6 +12,14 @@ export interface User {
   hasCompletedTutorial: boolean;
   registrationDate: string;
   lastLogin?: string;
+  // Weather-related location data
+  primaryLocation?: Location;
+  fieldLocations?: Location[];
+  weatherPreferences?: {
+    autoDetectLocation: boolean;
+    preferredUnits: 'metric' | 'imperial';
+    language: 'en' | 'hi';
+  };
 }
 
 // Mock user database - in a real app, this would be in a backend
@@ -167,4 +177,80 @@ export const clearUserSession = (): void => {
 
 export const isAuthenticated = (): boolean => {
   return localStorage.getItem('isAuthenticated') === 'true' && !!getCurrentUser();
+};
+
+// Weather location management functions
+export const updateUserLocation = (email: string, location: Location, isPrimary: boolean = true): void => {
+  const user = mockUsers[email.toLowerCase()];
+  if (user) {
+    if (isPrimary) {
+      user.primaryLocation = location;
+    } else {
+      if (!user.fieldLocations) {
+        user.fieldLocations = [];
+      }
+      // Check if location already exists
+      const existingIndex = user.fieldLocations.findIndex(
+        loc => Math.abs(loc.latitude - location.latitude) < 0.01 && 
+               Math.abs(loc.longitude - location.longitude) < 0.01
+      );
+      
+      if (existingIndex === -1) {
+        user.fieldLocations.push(location);
+      } else {
+        user.fieldLocations[existingIndex] = location;
+      }
+    }
+    
+    // Update localStorage
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.email === email) {
+      saveUserSession(user);
+    }
+  }
+};
+
+export const getUserLocation = (email: string): Location | null => {
+  const user = mockUsers[email.toLowerCase()];
+  return user?.primaryLocation || null;
+};
+
+export const getUserFieldLocations = (email: string): Location[] => {
+  const user = mockUsers[email.toLowerCase()];
+  return user?.fieldLocations || [];
+};
+
+export const updateWeatherPreferences = (
+  email: string, 
+  preferences: {
+    autoDetectLocation?: boolean;
+    preferredUnits?: 'metric' | 'imperial';
+    language?: 'en' | 'hi';
+  }
+): void => {
+  const user = mockUsers[email.toLowerCase()];
+  if (user) {
+    user.weatherPreferences = {
+      autoDetectLocation: preferences.autoDetectLocation ?? true,
+      preferredUnits: preferences.preferredUnits ?? 'metric',
+      language: preferences.language ?? 'en',
+      ...user.weatherPreferences,
+      ...preferences
+    };
+    
+    // Update localStorage
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.email === email) {
+      saveUserSession(user);
+    }
+  }
+};
+
+export const getWeatherPreferences = (email: string) => {
+  const user = mockUsers[email.toLowerCase()];
+  return user?.weatherPreferences || {
+    autoDetectLocation: true,
+    preferredUnits: 'metric' as const,
+    language: 'en' as const
+  };
 };

@@ -8,6 +8,7 @@ import { isAuthenticated, getCurrentUser, needsTutorial } from './utils/userUtil
 import Navigation from './components/Navigation';
 import AIChatbot from './components/AIChatbot';
 import OnboardingFlow from './components/OnboardingFlow';
+import RouteTransition from './components/RouteTransition';
 
 // Pages
 import Login from './pages/Login';
@@ -50,7 +51,9 @@ function App() {
     return (
       <div className="min-h-screen bg-gray-50">
         {showNavigation && <Navigation />}
-        {children}
+        <RouteTransition>
+          {children}
+        </RouteTransition>
         {showNavigation && <AIChatbot />}
       </div>
     );

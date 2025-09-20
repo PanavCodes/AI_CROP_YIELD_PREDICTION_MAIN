@@ -2,187 +2,100 @@
 
 This file provides guidance to WARP (warp.dev) when working with code in this repository.
 
-## Development Commands
+Project: Crop Prediction App (React + Vite + TypeScript)
 
-### Setup and Installation
-```bash
-# Install dependencies (use --legacy-peer-deps for compatibility)
-npm install --legacy-peer-deps
+Commands
 
-# Start development server
-npm run dev
-# or
-npm start
+- Install dependencies
+  - npm ci
+  - If install fails due to peer deps: npm install --legacy-peer-deps
 
-# Build for production
-npm run build
+- Start dev server (Vite, opens at http://localhost:3000)
+  - npm run dev
+  - npm start
 
-# Preview production build locally
-npm run preview
+- Build (type-checks then bundles to dist/)
+  - npm run build
 
-# Run tests
-npm test
+- Preview production build (serves dist/)
+  - npm run preview
 
-# Run tests in watch mode
-npm test -- --watch
+- Tests (Vitest + Testing Library)
+  - Run all tests (watch): npm test
+  - Run once (CI style): npm run test -- --run
+  - Run a single file: npm run test -- src/App.test.tsx
+  - Run tests by name/pattern: npm run test -- -t "renders learn react link"
 
-# Run single test file
-npm test -- src/components/__tests__/ComponentName.test.tsx
-```
+Notes: No linter configured in this repo (no ESLint/Prettier scripts found).
 
-### Development Server
-- Development server runs on `http://localhost:3000`
-- Lightning-fast hot module replacement (HMR) via Vite
-- TailwindCSS builds automatically during development
-- Vite provides instant server startup and optimized builds
+High-level architecture
 
-## Project Architecture
+- App shell and routing
+  - Single-page app using React Router (BrowserRouter) in src/App.tsx
+  - Route guard pattern:
+    - PrivateRoute wraps protected routes and redirects unauthenticated users to /login
+    - AuthenticatedRedirect (/) routes users based on profile state:
+      - New-user tutorial gate via needsTutorial(user)
+      - Farm data completion gate (hasFarmData) redirects to /data-input
+  - Top-level layout (AppLayout) shows Navigation and AIChatbot only for authenticated routes
 
-### Tech Stack Overview
-- **Frontend**: React 18 with TypeScript
-- **Styling**: TailwindCSS with custom agricultural color palette
-- **Routing**: React Router DOM v7
-- **Internationalization**: i18next (English/Hindi support)
-- **Charts**: Recharts for data visualization
-- **Icons**: React Icons (Feather Icons & Game Icons)
-- **State Management**: React hooks + localStorage for persistence
-- **Build Tool**: Vite (lightning-fast build tool and dev server)
+- Authentication and session model (mocked)
+  - Local-only mock auth in src/utils/userUtils.ts using localStorage
+  - isAuthenticated(), getCurrentUser(), saveUserSession(), updateUserFarmData(), needsTutorial()
+  - Special-case flow for the demo user n@gmail.com: restricted to onboarding and data-input until completion
 
-### User Flow Architecture
-The application implements a sophisticated user flow with three distinct user types:
+- Internationalization (i18n)
+  - i18next configured in src/utils/i18n.ts and initialized application-wide
+  - English (en) and Hindi (hi) resources defined inline
+  - Language preference persisted to localStorage; language switchers in UI (e.g., Navigation, Login/Signup)
 
-1. **New Users (`n@gmail.com`)**: Tutorial → Data Input → Dashboard
-2. **Existing Users**: Direct to Dashboard
-3. **Demo Users**: Full access to all features
+- UI and styling
+  - TailwindCSS with custom agricultural color palette (tailwind.config.js)
+  - Design tokens (colors/typography) extended; utility-first styling throughout
+  - UI primitives in src/components/ui (Button, Header, Input)
 
-**Key Routing Logic** (in `src/App.tsx`):
-- `AuthenticatedRedirect` component handles initial routing based on user state
-- `PrivateRoute` wrapper enforces authentication and user-specific access controls
-- New users are restricted to onboarding and data-input pages until setup is complete
+- Core pages and flows
+  - Authentication: src/pages/Login.tsx, src/pages/Signup.tsx
+  - Onboarding flow: src/components/OnboardingFlow.tsx orchestrates tutorial and initial data collection
+  - Farm data input: src/pages/DataInput.tsx supports manual form and mock CSV/Excel upload
+  - Main features:
+    - Dashboard: src/pages/Dashboard.tsx (weather, predictions, charts, AI yield modal)
+    - Suggestions: src/pages/Suggestions.tsx (categorized optimization tasks with completion state)
+    - Market Insights: src/pages/MarketInsights.tsx
+    - Community: src/pages/Community.tsx
+    - Profile Settings: src/pages/profile-settings
 
-### Core Components Structure
+- Data and utilities
+  - Mock domain data in src/mockData/mockData.ts (weather, yields, optimization suggestions, etc.)
+  - User/session helpers in src/utils/userUtils.ts
+  - Notifications in src/utils/notificationUtils.ts consumed by Navigation/NotificationIcon
+  - Misc utilities in src/lib/utils.ts
 
-**Navigation System**:
-- `Navigation.tsx`: Adaptive navigation that disables certain features for new users
-- Profile dropdown with language switching
-- Mobile-responsive collapsible menu
+- Project configuration and build
+  - Vite config (vite.config.ts):
+    - Alias @ -> ./src
+    - Dev server: port 3000, open: true
+    - Build outDir: dist, sourcemap: true
+    - assetsInclude for common image types
+  - TypeScript config (tsconfig.json):
+    - Strict mode; path mapping "@/*" -> "src/*"
+    - noEmit builds; tsc used for type-checking in build script
 
-**User Onboarding Flow**:
-- `OnboardingFlow.tsx`: Manages tutorial progression
-- `Tutorial.tsx`: Interactive 5-step tutorial component
-- Progressive disclosure based on user completion state
+- Testing setup
+  - Vitest test runner via script "test": "vitest"
+  - Testing Library and jest-dom set up in src/setupTests.ts (global matchers)
+  - Example test: src/App.test.tsx
 
-**Data Architecture**:
-- `mockData/mockData.ts`: Comprehensive mock data including weather, crops, predictions, and user profiles
-- `utils/userUtils.ts`: User state management with localStorage persistence
-- `utils/i18n.ts`: Complete bilingual translations (800+ keys)
+Repository conventions and tips (actionable)
 
-### State Management Patterns
+- Use path aliases for imports (Vite + TS):
+  - import Something from '@/components/Navigation'
+- When adding tests, keep them alongside components or under src/** with .test.tsx and they will be picked up by Vitest
+- Production build artifacts are emitted to dist/
 
-**User Authentication**:
-```typescript
-// User state is managed via localStorage with typed interfaces
-interface User {
-  hasCompletedProfile: boolean;
-  hasFarmData: boolean;
-  hasCompletedTutorial: boolean;
-  // ... other properties
-}
-```
+Key context from README.md
 
-**Feature Flags via User State**:
-- Navigation items are conditionally disabled based on `user.hasFarmData`
-- Tutorial completion tracked via `user.hasCompletedTutorial`
-- Route access controlled by user type and completion status
-
-## Vite Configuration
-
-The project uses Vite for fast development and optimized production builds:
-
-**Key Features:**
-- **Fast HMR**: Instant hot module replacement during development
-- **Optimized Builds**: Advanced code splitting and tree-shaking
-- **TypeScript Support**: Built-in TypeScript compilation
-- **Path Aliases**: `@/` mapped to `src/` directory for cleaner imports
-- **Asset Handling**: Automatic optimization of images and static assets
-
-**Configuration** (`vite.config.ts`):
-```typescript
-// Path aliases for cleaner imports
-resolve: {
-  alias: {
-    '@': resolve(__dirname, './src'),
-  },
-}
-
-// Development server on port 3000 (matches CRA)
-server: {
-  port: 3000,
-  open: true,
-}
-```
-
-## Key Development Guidelines
-
-### Mock Data System
-All data is currently mocked in `src/mockData/mockData.ts`. When transitioning to real APIs:
-- Replace mock weather data with actual weather service
-- Implement backend authentication instead of localStorage
-- Convert mock crop predictions to actual ML model integration
-
-### Internationalization (i18n)
-- All UI text must use `t()` function from `useTranslation()` hook
-- Translation keys are nested (e.g., `t('dashboard.weather')`)
-- Language preference persisted in localStorage
-- Add new languages by extending the `resources` object in `i18n.ts`
-
-### Color System (TailwindCSS)
-Custom agricultural-themed colors are defined in `tailwind.config.js`:
-```javascript
-colors: {
-  'leaf-green': '#228B22',
-  'earth-brown': '#8B4513', 
-  'sky-blue': '#87CEEB',
-  'wheat-gold': '#F5DEB3',
-  'soil-dark': '#654321'
-}
-```
-
-### User Testing Accounts
-For development and testing:
-- `demo@farm.com`: Full-featured existing user
-- `e@gmail.com`: Another existing user with complete setup
-- `n@gmail.com`: New user for testing onboarding flow
-- Any email with any password works (authentication is mocked)
-
-### Component File Organization
-```
-src/
-├── components/           # Reusable UI components
-│   ├── ui/              # Basic UI primitives (Button, Input, etc.)
-│   ├── AIChatbot.tsx    # AI assistant component
-│   └── Navigation.tsx   # Main navigation
-├── pages/               # Route-level page components
-├── utils/               # Helper functions and utilities
-├── mockData/           # All mock data and sample content
-├── types/              # TypeScript type definitions
-└── lib/                # Shared utilities (utils.ts for cn() helper)
-```
-
-### Responsive Design Approach
-- Mobile-first design with TailwindCSS breakpoints
-- Navigation collapses to hamburger menu on mobile
-- Touch-friendly interface with large clickable areas
-- Consistent spacing using Tailwind's spacing scale
-
-## Prototype Limitations
-
-This is a hackathon prototype with simulated features:
-- No real backend or database integration
-- Mock AI predictions (not actual ML models)
-- Simulated file uploads (UI only)
-- No real SMS/WhatsApp notifications
-- Community forum is UI-only
-- Weather data is mocked (not live API)
-
-When extending this prototype, prioritize implementing actual backend services for authentication, data persistence, and AI model integration.
+- This is a prototype with mocked authentication, data, and AI outputs for demo purposes
+- Demo behavior: any password works; sample emails influence flow
+  - e@gmail.com (existing user): routed to dashboard
+  - n@gmail.com (new user): forced through tutorial and data input before gaining full access
