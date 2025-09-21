@@ -184,11 +184,32 @@ const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <MapPin className="text-blue-600" size={20} />
-            <h2 className="text-xl font-bold text-gray-800">
-              {weatherLocation.name || 'Current Location'}
-            </h2>
+          <div className="flex items-start gap-2">
+            <MapPin className="text-blue-600 mt-0.5" size={20} />
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">
+                {weatherLocation.name || 'Current Location'}
+              </h2>
+              {(weatherLocation.district || weatherLocation.state) && (
+                <div className="text-sm text-gray-600 mt-0.5 flex items-center gap-1">
+                  {weatherLocation.district && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                      {weatherLocation.district}
+                    </span>
+                  )}
+                  {weatherLocation.state && (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                      {weatherLocation.state}
+                    </span>
+                  )}
+                  {weatherLocation.country && (
+                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                      {weatherLocation.country}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={refreshWeather}
@@ -257,8 +278,13 @@ const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
         </div>
 
         {lastUpdated && (
-          <div className="text-xs text-gray-500 mt-4 text-center">
-            Last updated: {lastUpdated.toLocaleTimeString()}
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
+            <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
+            {weatherData.alerts?.some(alert => alert.id.includes('google')) && (
+              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
+                🌍 Google Enhanced
+              </span>
+            )}
           </div>
         )}
       </motion.div>
@@ -271,9 +297,16 @@ const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="text-red-600" size={20} />
-            <h3 className="text-lg font-bold text-red-800">Weather Alerts</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="text-red-600" size={20} />
+              <h3 className="text-lg font-bold text-red-800">Weather Alerts</h3>
+            </div>
+            {alerts.some(alert => alert.id.includes('google')) && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 rounded-full">
+                <span className="text-xs text-blue-700 font-medium">🌍 Google Enhanced</span>
+              </div>
+            )}
           </div>
           <div className="space-y-3">
             {alerts.map((alert) => (

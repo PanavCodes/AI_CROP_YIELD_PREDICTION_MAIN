@@ -18,6 +18,7 @@ class WeatherService {
     this.config = {
       provider: (import.meta.env.VITE_WEATHER_PROVIDER as any) || 'weatherapi',
       apiKey: (import.meta.env.VITE_WEATHER_API_KEY as string) || 'demo_key',
+      googleApiKey: (import.meta.env.VITE_GOOGLE_WEATHER_API_KEY as string),
       baseUrl: this.getBaseUrl(),
       cacheDuration: parseInt((import.meta.env.VITE_WEATHER_CACHE_DURATION as string) || '12')
     };
@@ -34,6 +35,8 @@ class WeatherService {
         return 'https://api.weatherapi.com/v1';
       case 'tomorrow':
         return 'https://api.tomorrow.io/v4';
+      case 'google':
+        return 'https://api.openweathermap.org/data/2.5'; // Use OpenWeatherMap API for weather data
       default:
         return 'https://api.weatherapi.com/v1';
     }
@@ -84,6 +87,8 @@ class WeatherService {
       return this.fetchFromWeatherAPI(latitude, longitude, location);
     } else if (this.config.provider === 'openweathermap') {
       return this.fetchFromOpenWeatherMap(latitude, longitude, location);
+    } else if (this.config.provider === 'google') {
+      return this.fetchFromGoogleEnhancedWeather(latitude, longitude, location);
     } else {
       throw new Error(`Unsupported weather provider: ${this.config.provider}`);
     }
@@ -133,6 +138,76 @@ class WeatherService {
     const forecastData = await forecastResponse.json();
 
     return this.transformOpenWeatherMapResponse(location, currentData, forecastData);
+  }
+
+  /**
+   * Fetch from Google-Enhanced Weather Service
+   * Uses OpenWeatherMap for weather data + Google APIs for enhanced location services
+   */
+  private async fetchFromGoogleEnhancedWeather(latitude: number, longitude: number, location: Location): Promise<WeatherData> {
+    // First, enhance location data using Google Geocoding API
+    let enhancedLocation = location;
+    
+    try {
+      if (this.config.googleApiKey) {
+        const geocodeResponse = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${this.config.googleApiKey}`
+        );
+        
+        if (geocodeResponse.ok) {
+          const geocodeData = await geocodeResponse.json();
+          if (geocodeData.results && geocodeData.results.length > 0) {
+            const result = geocodeData.results[0];
+            
+            // Extract location details from Google's response
+            const addressComponents = result.address_components;
+            let district = '', village = '', state = '', country = '';
+            
+            for (const component of addressComponents) {
+              if (component.types.includes('administrative_area_level_2')) {
+                district = component.long_name;
+              } else if (component.types.includes('locality') || component.types.includes('sublocality')) {
+                village = component.long_name;
+              } else if (component.types.includes('administrative_area_level_1')) {
+                state = component.long_name;
+              } else if (component.types.includes('country')) {
+                country = component.long_name;
+              }
+            }
+            
+            enhancedLocation = {
+              ...location,
+              name: result.formatted_address,
+              district: district || location.district,
+              village: village || location.village,
+              state: state || location.state,
+              country: country || location.country
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Google geocoding failed, using basic location:', error);
+    }
+    
+    // Fetch weather data from OpenWeatherMap
+    const [currentResponse, forecastResponse] = await Promise.all([
+      fetch(
+        `${this.config.baseUrl}/weather?lat=${latitude}&lon=${longitude}&appid=${this.config.apiKey}&units=metric`
+      ),
+      fetch(
+        `${this.config.baseUrl}/forecast?lat=${latitude}&lon=${longitude}&appid=${this.config.apiKey}&units=metric`
+      )
+    ]);
+
+    if (!currentResponse.ok || !forecastResponse.ok) {
+      throw new Error('Google-Enhanced Weather API request failed');
+    }
+
+    const currentData = await currentResponse.json();
+    const forecastData = await forecastResponse.json();
+
+    return this.transformGoogleEnhancedResponse(enhancedLocation, currentData, forecastData);
   }
 
   /**
@@ -252,6 +327,121 @@ class WeatherService {
       cachedAt: now,
       expiresAt
     };
+  }
+
+  /**
+   * Transform Google-Enhanced Weather response to our weather data format
+   * Uses OpenWeatherMap data structure but with enhanced Google location info
+   */
+  private transformGoogleEnhancedResponse(
+    location: Location,
+    currentData: any,
+    forecastData: any
+  ): WeatherData {
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + this.config.cacheDuration * 60 * 60 * 1000).toISOString();
+
+    // Transform current weather (same as OpenWeatherMap format)
+    const current: CurrentWeather = {
+      temperature: Math.round(currentData.main.temp),
+      feelsLike: Math.round(currentData.main.feels_like),
+      humidity: currentData.main.humidity,
+      rainfall: currentData.rain?.['1h'] || 0,
+      windSpeed: Math.round(currentData.wind.speed * 3.6), // Convert m/s to km/h
+      windDirection: this.getWindDirection(currentData.wind.deg),
+      pressure: currentData.main.pressure,
+      visibility: Math.round((currentData.visibility || 10000) / 1000), // Convert m to km
+      uvIndex: 0, // Not available in OpenWeatherMap free tier
+      condition: this.getWeatherCondition(currentData.weather[0].main),
+      conditionCode: currentData.weather[0].icon,
+      sunrise: new Date(currentData.sys.sunrise * 1000).toISOString(),
+      sunset: new Date(currentData.sys.sunset * 1000).toISOString(),
+      lastUpdated: now
+    };
+
+    // Transform forecast (next 7 days)
+    const forecast: DailyForecast[] = this.processForecastData(forecastData.list);
+
+    // Generate weather alerts with Google-enhanced location context
+    const alerts: WeatherAlert[] = this.generateGoogleEnhancedAlerts(current, forecast, location);
+
+    return {
+      location: {
+        ...location,
+        // Use enhanced location name from Google if available, otherwise fall back to OpenWeatherMap
+        name: location.name || currentData.name || 'Unknown Location'
+      },
+      current,
+      forecast,
+      alerts,
+      cachedAt: now,
+      expiresAt
+    };
+  }
+
+  /**
+   * Generate enhanced weather alerts with Google location context
+   */
+  private generateGoogleEnhancedAlerts(current: CurrentWeather, forecast: DailyForecast[], location: Location): WeatherAlert[] {
+    const alerts: WeatherAlert[] = [];
+    const locationName = location.name || 'Current Location';
+    const district = location.district;
+    const state = location.state;
+
+    // High temperature alert with location context
+    if (current.temperature > 40) {
+      alerts.push({
+        id: 'high-temp-google',
+        title: 'Extreme Heat Warning',
+        description: `Extreme heat conditions in ${locationName}. Temperature: ${current.temperature}°C. Ensure adequate irrigation, provide shade for crops, and consider adjusting field work schedules.`,
+        severity: 'severe',
+        startTime: new Date().toISOString(),
+        endTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        areas: [locationName, district, state].filter(Boolean)
+      });
+    }
+
+    // Heavy rain forecast with regional context
+    const heavyRainDay = forecast.find(day => day.rainfall > 25);
+    if (heavyRainDay) {
+      alerts.push({
+        id: 'heavy-rain-google',
+        title: 'Heavy Rainfall Alert',
+        description: `Heavy rainfall expected on ${heavyRainDay.date} in ${locationName}. Expected: ${heavyRainDay.rainfall}mm. Prepare field drainage, delay pesticide/fertilizer application, and secure equipment.`,
+        severity: 'moderate',
+        startTime: new Date(heavyRainDay.date).toISOString(),
+        endTime: new Date(new Date(heavyRainDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString(),
+        areas: [locationName, district, state].filter(Boolean)
+      });
+    }
+
+    // High humidity alert (especially important for crop diseases)
+    if (current.humidity > 85) {
+      alerts.push({
+        id: 'high-humidity-google',
+        title: 'High Humidity Alert',
+        description: `High humidity levels (${current.humidity}%) in ${locationName}. Increased risk of fungal diseases. Monitor crops closely and consider preventive fungicide application.`,
+        severity: 'minor',
+        startTime: new Date().toISOString(),
+        endTime: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+        areas: [locationName, district].filter(Boolean)
+      });
+    }
+
+    // Strong wind alert
+    if (current.windSpeed > 30) {
+      alerts.push({
+        id: 'strong-wind-google',
+        title: 'Strong Wind Warning',
+        description: `Strong winds (${current.windSpeed} km/h) expected in ${locationName}. Secure tall crops, greenhouses, and equipment. Avoid spraying operations.`,
+        severity: 'moderate',
+        startTime: new Date().toISOString(),
+        endTime: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        areas: [locationName, district].filter(Boolean)
+      });
+    }
+
+    return alerts;
   }
 
   /**

@@ -81,8 +81,9 @@ export interface LocationDetectionResult {
 
 // Weather API configuration
 export interface WeatherAPIConfig {
-  provider: 'openweathermap' | 'weatherapi' | 'tomorrow';
+  provider: 'openweathermap' | 'weatherapi' | 'tomorrow' | 'google';
   apiKey: string;
+  googleApiKey?: string; // For Google-enhanced services
   baseUrl: string;
   cacheDuration: number; // hours
 }
