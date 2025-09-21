@@ -33,10 +33,13 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc && vite build",
     "preview": "vite preview",
-    "start": "vite",
-    "test": "vitest"
+    "test": "vitest",
+    "backend": "cd server && npm start",
+    "frontend": "npm run dev",
+    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run backend\" \"npm run frontend\""
   },
   "browserslist": {
     "production": [
@@ -53,6 +56,7 @@
   "devDependencies": {
     "@types/node": "^24.5.2",
     "@vitejs/plugin-react": "^5.0.3",
+    "concurrently": "^9.2.1",
     "vite": "^7.1.6",
     "vitest": "^3.2.4"
   }

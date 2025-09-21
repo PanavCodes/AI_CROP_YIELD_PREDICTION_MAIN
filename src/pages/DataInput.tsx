@@ -121,6 +121,14 @@ const DataInput: React.FC = () => {
   } | null>(null);
   const [adminInfo, setAdminInfo] = useState<{ village?: string; district?: string; state?: string; source?: string } | null>(null);
   const [integratedFieldData, setIntegratedFieldData] = useState<FieldLocationData | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  
+  // States for displaying crop data
+  const [cropData, setCropData] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(false);
+  const [dataStats, setDataStats] = useState<any>(null);
+  const [showDataTable, setShowDataTable] = useState(false);
 
   // Update form when currentFieldIndex changes
   useEffect(() => {
@@ -128,6 +136,30 @@ const DataInput: React.FC = () => {
       setForm(fields[currentFieldIndex]);
     }
   }, [currentFieldIndex, fields]);
+  
+  // Load location from profile when editing
+  useEffect(() => {
+    if (editingIndex !== null && profiles[editingIndex]) {
+      const profile = profiles[editingIndex];
+      if (profile.field_profile.location) {
+        setSelectedLocation({
+          latitude: profile.field_profile.location.latitude,
+          longitude: profile.field_profile.location.longitude,
+          name: profile.field_profile.location.name,
+          district: profile.field_profile.location.district,
+          state: profile.field_profile.location.state,
+          country: profile.field_profile.location.country
+        });
+        console.log('Loaded location from profile:', profile.field_profile.location);
+      } else {
+        setSelectedLocation(null);
+        console.log('No location found in profile');
+      }
+    } else if (editingIndex === null) {
+      // Clear location when creating new profile
+      setSelectedLocation(null);
+    }
+  }, [editingIndex, profiles]);
 
   // Update fields array when form changes
   useEffect(() => {
@@ -143,7 +175,46 @@ const DataInput: React.FC = () => {
     if (user && isNewUser(user)) {
       setShowNewUserMessage(true);
     }
+    // Fetch existing data when component mounts
+    fetchCropData();
   }, []);
+
+  // Function to fetch crop data from backend
+  const fetchCropData = async () => {
+    setLoadingData(true);
+    try {
+      console.log('🔍 DEBUG: Fetching crop data from backend...');
+      
+      // Fetch crop data
+      const dataResponse = await fetch('http://localhost:5000/api/crop-data?limit=100');
+      console.log('🔍 DEBUG: Data response status:', dataResponse.status);
+      
+      if (dataResponse.ok) {
+        const data = await dataResponse.json();
+        console.log('🔍 DEBUG: Received crop data:', data);
+        setCropData(data.data || []);
+        console.log('🔍 DEBUG: Set crop data length:', data.data?.length || 0);
+      } else {
+        console.error('❌ Data fetch failed with status:', dataResponse.status);
+      }
+      
+      // Fetch statistics
+      const statsResponse = await fetch('http://localhost:5000/api/crop-data/statistics');
+      console.log('🔍 DEBUG: Stats response status:', statsResponse.status);
+      
+      if (statsResponse.ok) {
+        const stats = await statsResponse.json();
+        console.log('🔍 DEBUG: Received stats:', stats);
+        setDataStats(stats.data || stats);
+      } else {
+        console.error('❌ Stats fetch failed with status:', statsResponse.status);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching crop data:', error);
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   const setField = (name: keyof FieldForm, value: any) => {
     setForm(prev => ({ ...prev, [name]: value }));
@@ -285,7 +356,11 @@ const DataInput: React.FC = () => {
 
     try {
       // Save all fields as separate profiles
-      const newProfiles = fields.map(field => buildJSON(field));
+      const newProfiles = fields.map(field => {
+        const profile = buildJSON(field);
+        console.log('Saving profile with location:', profile.field_profile.location);
+        return profile;
+      });
       const next = [...profiles];
       
       if (editingIndex !== null) {
@@ -351,33 +426,54 @@ const DataInput: React.FC = () => {
     if (!uploadedFile) return;
 
     setIsSubmitting(true);
+    setUploadStatus('uploading');
+    setErrors([]);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('csvFile', uploadedFile);
 
-      // Example: create a mock profile from uploaded file
-      const mock: FieldProfileJSON = {
-        field_profile: {
-          field_name: 'Uploaded Field',
-          field_size_hectares: 10,
-          soil_type: 'Loamy',
-          irrigation: { method: 'Drip', availability: 'High' },
-          crops: [
-            {
-              crop_type: 'Wheat',
-              planting_date: '01-11-2024',
-              fertilizers_used: ['NPK', 'Urea'],
-              pesticides_used: ['Neem Oil'],
-              previous_crop: null,
-              soil_test_results: { N: 80, P: 40, K: 42, pH: 6.5 },
-            },
-          ],
-        },
-      };
+      // Upload to backend API
+      console.log('Uploading CSV to backend...');
+      const response = await fetch('http://localhost:5000/api/upload/csv', {
+        method: 'POST',
+        body: formData
+      });
 
-      const next = [...profiles, mock];
-      saveProfilesToStorage(next);
+      const result = await response.json();
+      console.log('Upload result:', result);
 
+      if (!response.ok || !result.success) {
+        setErrors(result.errors || [result.error || 'Upload failed']);
+        setUploadStatus('error');
+        return;
+      }
+
+      // Show success with summary
+      setUploadStatus('success');
+      const summary = result.data;
+      const successMsg = `CSV processed successfully! Total: ${summary.totalRows} rows, Valid: ${summary.validRows}, Invalid: ${summary.invalidRows}`;
+      setSuccessMessage(successMsg);
+      
+      // Display crop summary if available
+      if (summary.summary?.cropTypes) {
+        const crops = Object.keys(summary.summary.cropTypes).join(', ');
+        console.log('Crops found:', crops);
+      }
+
+      // Show validation errors if any
+      if (summary.errors && summary.errors.length > 0) {
+        const errorMessages = summary.errors.slice(0, 5).map(
+          (err: any) => `Row ${err.row}: ${err.error}`
+        );
+        if (summary.errors.length > 5) {
+          errorMessages.push(`...and ${summary.errors.length - 5} more errors`);
+        }
+        setErrors(errorMessages);
+      }
+
+      // Update user status
       if (currentUser) {
         updateUserFarmData(currentUser.email);
         const updatedUser = { ...currentUser, hasFarmData: true };
@@ -385,9 +481,19 @@ const DataInput: React.FC = () => {
         setCurrentUser(updatedUser);
       }
 
-      navigate('/dashboard');
+      // Fetch and show the uploaded data
+      await fetchCropData();
+      setShowDataTable(true);
+      
+      // Don't navigate away - let user see their data
+      // setTimeout(() => {
+      //   navigate('/dashboard');
+      // }, 2000);
+      
     } catch (error) {
       console.error('Error uploading file:', error);
+      setErrors(['Network error: Could not connect to server. Make sure backend is running on port 5000.']);
+      setUploadStatus('error');
     } finally {
       setIsSubmitting(false);
     }
@@ -1221,6 +1327,35 @@ const DataInput: React.FC = () => {
                   </div>
                 )}
 
+                {/* Upload Status Messages */}
+                {uploadStatus === 'success' && successMessage && (
+                  <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
+                    <CheckCircle className="w-5 h-5" />
+                    <div className="flex-1">
+                      <p className="font-medium">{successMessage}</p>
+                      <p className="text-sm mt-1">Redirecting to dashboard...</p>
+                    </div>
+                  </div>
+                )}
+
+                {uploadStatus === 'error' && errors.length > 0 && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+                    <p className="font-medium mb-2">Upload Errors:</p>
+                    <ul className="list-disc list-inside text-sm">
+                      {errors.map((error, idx) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {uploadStatus === 'uploading' && (
+                  <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded-lg flex items-center gap-2">
+                    <Loader className="w-5 h-5 animate-spin" />
+                    <p className="font-medium">Processing CSV file...</p>
+                  </div>
+                )}
+
                 <div className="flex gap-4">
                   <button
                     onClick={handleFileUpload}
@@ -1250,6 +1385,124 @@ const DataInput: React.FC = () => {
                     </button>
                   )}
                 </div>
+              </div>
+            )}
+            
+            {/* Display uploaded crop data */}
+            {showDataTable && (
+              <div className="mt-8">
+                <div className="bg-white rounded-xl shadow-md overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-4">
+                    <h2 className="text-xl font-bold text-white flex items-center justify-between">
+                      <span>📊 Uploaded Crop Data</span>
+                      <button
+                        onClick={fetchCropData}
+                        disabled={loadingData}
+                        className="text-sm bg-white/20 hover:bg-white/30 px-3 py-1 rounded"
+                      >
+                        {loadingData ? 'Refreshing...' : '🔄 Refresh'}
+                      </button>
+                    </h2>
+                    {dataStats && (
+                      <div className="mt-2 text-white/90 text-sm grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div>Total Records: {dataStats.total_records || 0}</div>
+                        <div>Unique Crops: {dataStats.unique_crops || 0}</div>
+                        <div>Unique States: {dataStats.unique_states || 0}</div>
+                        <div>Avg Yield: {dataStats.avg_yield?.toFixed(2) || 'N/A'}</div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-4">
+                    {loadingData ? (
+                      <div className="text-center py-8">
+                        <Loader className="w-8 h-8 animate-spin mx-auto text-blue-500" />
+                        <p className="mt-2 text-gray-600">Loading crop data...</p>
+                      </div>
+                    ) : cropData.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field Name</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">District</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Crop Type</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Yield/Ha</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field Size (Ha)</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {cropData.slice(0, 50).map((row, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                  {row.field_name || 'Unknown'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                  {row.state || 'Unknown'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                  {row.district || 'Unknown'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                  {row.crop_type || 'Unknown'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                  {row.yield_per_hectare?.toFixed(2) || '0.00'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                                  {row.field_size_hectares?.toFixed(2) || '0.00'}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                                  {row.data_source || 'csv_upload'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {cropData.length > 50 && (
+                          <p className="text-sm text-gray-500 text-center mt-4">
+                            Showing first 50 of {cropData.length} records
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No crop data available yet.</p>
+                        <p className="text-sm mt-2">Upload a CSV file to see your data here.</p>
+                      </div>
+                    )}
+                    
+                    {cropData.length > 0 && (
+                      <div className="mt-4 flex justify-end gap-2">
+                        <button
+                          onClick={() => setShowDataTable(false)}
+                          className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                        >
+                          Hide Table
+                        </button>
+                        <button
+                          onClick={() => navigate('/dashboard')}
+                          className="px-4 py-2 text-sm bg-leaf-green text-white hover:bg-green-700 rounded"
+                        >
+                          Go to Dashboard
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {!showDataTable && cropData.length > 0 && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setShowDataTable(true)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                >
+                  Show Uploaded Data ({cropData.length} records)
+                </button>
               </div>
             )}
           </div>

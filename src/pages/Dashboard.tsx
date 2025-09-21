@@ -38,6 +38,7 @@ import {
   getCropMarketInsights 
 } from '../utils/cropDataUtils';
 import WeatherDashboard from '../components/WeatherDashboard';
+import FieldLocationDebug from '../components/FieldLocationDebug';
 import { Location } from '../types/weather';
 
 // Type for field profiles
@@ -82,6 +83,7 @@ const Dashboard: React.FC = () => {
   // Profile management states
   const [selectedProfile, setSelectedProfile] = useState<number>(0);
   const [selectedCrop, setSelectedCrop] = useState<number>(0);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   
   // Weather-related state
   const [userLocation, setUserLocation] = useState<Location | null>(null);
@@ -111,8 +113,10 @@ const Dashboard: React.FC = () => {
   // Set location from selected field profile
   useEffect(() => {
     if (currentProfile?.field_profile?.location) {
+      console.log('Dashboard: Loading field location for weather:', currentProfile.field_profile.location);
       setUserLocation(currentProfile.field_profile.location);
     } else {
+      console.log('Dashboard: No field location found, weather will use user location');
       setUserLocation(null);
     }
   }, [currentProfile]);
@@ -610,6 +614,13 @@ const Dashboard: React.FC = () => {
         <WeatherDashboard 
           currentCrop={currentCrop?.crop_type} 
           location={userLocation || undefined}
+        />
+        
+        {/* Debug Component - Only shows in development */}
+        <FieldLocationDebug 
+          profiles={profiles}
+          selectedProfileIndex={selectedProfileIndex}
+          currentLocation={userLocation}
         />
 
         {/* Main Content Grid */}
