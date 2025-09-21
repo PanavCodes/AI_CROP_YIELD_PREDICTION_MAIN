@@ -38,6 +38,7 @@ import {
   getCropMarketInsights 
 } from '../utils/cropDataUtils';
 import WeatherDashboard from '../components/WeatherDashboard';
+import { Location } from '../types/weather';
 
 // Type for field profiles
 interface FieldProfile {
@@ -45,6 +46,14 @@ interface FieldProfile {
     field_name: string;
     field_size_hectares: number;
     soil_type: string;
+    location?: {
+      latitude: number;
+      longitude: number;
+      name?: string;
+      district?: string;
+      state?: string;
+      country?: string;
+    };
     irrigation: {
       method: string;
       availability: string;
@@ -74,11 +83,8 @@ const Dashboard: React.FC = () => {
   const [selectedProfile, setSelectedProfile] = useState<number>(0);
   const [selectedCrop, setSelectedCrop] = useState<number>(0);
   
-  // Weather-related state - temporarily commented out for debugging
-  // const [userLocation, setUserLocation] = useState<Location | null>(null);
-  // const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
-  // const [detectingLocation, setDetectingLocation] = useState(false);
+  // Weather-related state
+  const [userLocation, setUserLocation] = useState<Location | null>(null);
   
   // Profile and crop state
   const [profiles, setProfiles] = useState<FieldProfile[]>([]);
@@ -98,59 +104,33 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Load user location and auto-detect if not available - temporarily commented out
-  /*
-  useEffect(() => {
-    if (currentUser) {
-      const savedLocation = getUserLocation(currentUser.email);
-      if (savedLocation) {
-        setUserLocation(savedLocation);
-      } else {
-        // Auto-detect location if no saved location
-        autoDetectLocation();
-      }
-    }
-  }, [currentUser]);
-
-  // Auto-detect location function
-  const autoDetectLocation = async () => {
-    setDetectingLocation(true);
-    try {
-      const locationService = await import('../services/locationService');
-      const locationResult = await locationService.default.detectLocation();
-
-      if (locationResult.success && locationResult.location) {
-        handleLocationChange(locationResult.location);
-      }
-    } catch (error) {
-      console.log('Auto-detection failed, user can manually select location');
-    } finally {
-      setDetectingLocation(false);
-    }
-  };
-
-  // Weather location handlers
-  const handleLocationChange = (location: Location) => {
-    setUserLocation(location);
-    if (currentUser) {
-      updateUserLocation(currentUser.email, location, true);
-    }
-  };
-
-  const handleLocationPickerOpen = () => {
-    setShowLocationPicker(true);
-  };
-  */
-  
   // Get current profile and crop
   const currentProfile = profiles[selectedProfileIndex];
   const currentCrop = currentProfile?.field_profile?.crops?.[selectedCropIndex];
 
+  // Set location from selected field profile
+  useEffect(() => {
+    if (currentProfile?.field_profile?.location) {
+      setUserLocation(currentProfile.field_profile.location);
+    } else {
+      setUserLocation(null);
+    }
+  }, [currentProfile]);
+
   // Get current date and weekday
   const getCurrentDateInfo = () => {
     const now = new Date();
-    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const weekdays = [
+      t('dashboard.weekdays.sunday'), t('dashboard.weekdays.monday'), t('dashboard.weekdays.tuesday'), 
+      t('dashboard.weekdays.wednesday'), t('dashboard.weekdays.thursday'), t('dashboard.weekdays.friday'), 
+      t('dashboard.weekdays.saturday')
+    ];
+    const months = [
+      t('dashboard.months.jan'), t('dashboard.months.feb'), t('dashboard.months.mar'), 
+      t('dashboard.months.apr'), t('dashboard.months.may'), t('dashboard.months.jun'),
+      t('dashboard.months.jul'), t('dashboard.months.aug'), t('dashboard.months.sep'), 
+      t('dashboard.months.oct'), t('dashboard.months.nov'), t('dashboard.months.dec')
+    ];
     
     const weekday = weekdays[now.getDay()];
     const month = months[now.getMonth()];
@@ -185,19 +165,19 @@ const Dashboard: React.FC = () => {
       
       return [
         { 
-          name: 'Nitrogen', 
+          name: t('dashboard.nitrogen'), 
           value: soilTestResults?.N || fertilizerPlanData.currentNutrients.nitrogen, 
           ideal: currentCropData?.fertilizer?.nitrogen || 50, 
           color: '#10b981' 
         },
         { 
-          name: 'Phosphorus', 
+          name: t('dashboard.phosphorus'), 
           value: soilTestResults?.P || fertilizerPlanData.currentNutrients.phosphorus, 
           ideal: currentCropData?.fertilizer?.phosphorus || 25, 
           color: '#f59e0b' 
         },
         { 
-          name: 'Potassium', 
+          name: t('dashboard.potassium'), 
           value: soilTestResults?.K || fertilizerPlanData.currentNutrients.potassium, 
           ideal: currentCropData?.fertilizer?.potassium || 40, 
           color: '#3b82f6' 
@@ -206,9 +186,9 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error in getSoilNutrientsData:', error);
       return [
-        { name: 'Nitrogen', value: 45, ideal: 50, color: '#10b981' },
-        { name: 'Phosphorus', value: 22, ideal: 25, color: '#f59e0b' },
-        { name: 'Potassium', value: 38, ideal: 40, color: '#3b82f6' },
+        { name: t('dashboard.nitrogen'), value: 45, ideal: 50, color: '#10b981' },
+        { name: t('dashboard.phosphorus'), value: 22, ideal: 25, color: '#f59e0b' },
+        { name: t('dashboard.potassium'), value: 38, ideal: 40, color: '#3b82f6' },
       ];
     }
   };
@@ -415,7 +395,7 @@ const Dashboard: React.FC = () => {
                     <div className="text-left">
                       <p className="text-xs text-gray-600">Active Field</p>
                       <p className="font-semibold text-gray-800 tracking-tight">
-                        {currentProfile?.field_profile?.field_name || 'Select Field'}
+                        {currentProfile?.field_profile?.field_name || t('dashboard.selectField')}
                       </p>
                     </div>
                     <ChevronDown size={16} className={`text-gray-600 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
@@ -627,7 +607,10 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Live Weather Dashboard Section */}
-        <WeatherDashboard currentCrop={currentCrop?.crop_type} />
+        <WeatherDashboard 
+          currentCrop={currentCrop?.crop_type} 
+          location={userLocation || undefined}
+        />
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-1 gap-4">
@@ -998,7 +981,7 @@ const Dashboard: React.FC = () => {
                 <YAxis 
                   stroke="#6b7280" 
                   fontSize={12}
-                  label={{ value: 'Tons/ha', angle: -90, position: 'insideLeft' }}
+                  label={{ value: t('dashboard.chartLabels.tonsPerHa'), angle: -90, position: 'insideLeft' }}
                 />
                 <Tooltip 
                   contentStyle={{ 
@@ -1009,7 +992,7 @@ const Dashboard: React.FC = () => {
                   }}
                   formatter={(value: any, name: any) => [
                     `${value} tons/ha`, 
-                    name === 'actual' ? 'Actual Yield' : name === 'predicted' ? 'AI Predicted' : 'Current Yield'
+                    name === 'actual' ? t('dashboard.chartLabels.actualYield') : name === 'predicted' ? t('dashboard.chartLabels.aiPredicted') : t('dashboard.chartLabels.currentYield')
                   ]}
                 />
                 <Legend 
@@ -1024,7 +1007,7 @@ const Dashboard: React.FC = () => {
                     stroke="#10b981"
                     strokeWidth={3}
                     dot={{ fill: '#10b981', r: 4 }}
-                    name="Actual Yield"
+                    name={t('dashboard.chartLabels.actualYield')}
                     connectNulls={false}
                   />
                 )}
@@ -1035,7 +1018,7 @@ const Dashboard: React.FC = () => {
                   strokeWidth={3}
                   strokeDasharray="5 5"
                   dot={{ fill: '#8b5cf6', r: 4 }}
-                  name="AI Predicted"
+                  name={t('dashboard.chartLabels.aiPredicted')}
                 />
                 <Line
                   type="monotone"
@@ -1043,7 +1026,7 @@ const Dashboard: React.FC = () => {
                   stroke="#f59e0b"
                   strokeWidth={2}
                   dot={{ fill: '#f59e0b', r: 3 }}
-                  name="Current Season"
+                  name={t('dashboard.chartLabels.currentSeason')}
                   fill="url(#colorYield)"
                 />
               </LineChart>
@@ -1182,14 +1165,6 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowAIModal(false)}
           selectedField={undefined}
         />
-
-        {/* Location Picker Modal - temporarily commented out for debugging */}
-        {/* <LocationPicker
-          isOpen={showLocationPicker}
-          onClose={() => setShowLocationPicker(false)}
-          onLocationSelect={handleLocationChange}
-          currentLocation={userLocation || undefined}
-        /> */}
       </div>
     </div>
   );

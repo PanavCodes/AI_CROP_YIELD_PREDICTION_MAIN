@@ -46,7 +46,30 @@ const resources = {
         rememberMe: "Remember me",
         forgotPassword: "Forgot password?",
         noAccount: "Don't have an account?",
-        haveAccount: "Already have an account?"
+        haveAccount: "Already have an account?",
+        invalidCredentials: "Invalid email or password. Try e@gmail.com or n@gmail.com with any password.",
+        loginFailed: "Login failed. Please try again.",
+        signupFailed: "Signup failed. Please try again.",
+        signingIn: "Signing in...",
+        creatingAccount: "Creating account...",
+        demoCredentials: "Demo Credentials:",
+        existingUser: "Existing User:",
+        newUser: "New User:",
+        legacyUser: "Legacy:",
+        anyPassword: "Password: Any password works",
+        tryNewUser: "Try n@gmail.com to see the tutorial!",
+        goesToDashboard: "(goes to Dashboard)",
+        tutorialAndDataInput: "(tutorial + data input)",
+        alsoGoesToDashboard: "(also goes to Dashboard)",
+        newUserRegistration: "New User Registration:",
+        afterSignupGuide: "After signup, you'll be guided to input your farm data",
+        emailPlaceholder: "demo@farm.com",
+        passwordPlaceholder: "••••••••",
+        namePlaceholder: "John Farmer",
+        signupEmailPlaceholder: "farmer@example.com",
+        phonePlaceholder: "+91 98765 43210",
+        locationPlaceholder: "Punjab, India",
+        farmSizePlaceholder: "5 hectares"
       },
       
       // Dashboard
@@ -125,7 +148,41 @@ const resources = {
         current: "Current",
         ideal: "Ideal",
         ppm: "ppm",
-        rabi: "Rabi"
+        rabi: "Rabi",
+        selectField: "Select Field",
+        activeField: "Active Field",
+        currentLevel: "Current Level",
+        idealForCrop: "Ideal for Crop",
+        weekdays: {
+          sunday: "Sunday",
+          monday: "Monday", 
+          tuesday: "Tuesday",
+          wednesday: "Wednesday",
+          thursday: "Thursday",
+          friday: "Friday",
+          saturday: "Saturday"
+        },
+        months: {
+          jan: "Jan",
+          feb: "Feb",
+          mar: "Mar",
+          apr: "Apr",
+          may: "May",
+          jun: "Jun",
+          jul: "Jul",
+          aug: "Aug",
+          sep: "Sep",
+          oct: "Oct",
+          nov: "Nov",
+          dec: "Dec"
+        },
+        chartLabels: {
+          tonsPerHa: "Tons/ha",
+          actualYield: "Actual Yield",
+          aiPredicted: "AI Predicted",
+          currentYield: "Current Yield",
+          currentSeason: "Current Season"
+        }
       },
       
       // Data Input
@@ -137,15 +194,11 @@ const resources = {
         cropType: "Crop Type",
         irrigationMethod: "Irrigation Method",
         plantingDate: "Planting Date",
-        fieldSize: "Field Size (hectares)",
         fertilzerUsed: "Fertilizer Used",
-        pesticidesUsed: "Pesticides Used",
         uploadCSV: "Upload CSV/Excel File",
         dragDrop: "Drag and drop file here or click to browse",
         supportedFormats: "Supported formats: CSV, Excel",
-        selectSoilType: "Select soil type",
         selectCropType: "Select crop type",
-        selectMethod: "Select method",
         newUserWelcome: "Welcome! Let's set up your farm profile",
         newUserMessage: "Add your farm details to get personalized insights and recommendations",
         saving: "Saving...",
@@ -154,9 +207,67 @@ const resources = {
         uploadComplete: "Upload & Complete Setup",
         browseFiles: "Browse Files",
         remove: "Remove",
-        fieldSizePlaceholder: "5.5",
-        fertilizerPlaceholder: "NPK, Urea",
+        addField: "Add Field",
+        removeField: "Remove Field",
+        addCrop: "Add Crop",
+        removeCrop: "Remove Crop",
+        fieldName: "Field name/ID",
+        fieldSize: "Field size (hectares)",
+        irrigationAvailability: "Irrigation availability",
+        fieldManagement: "Field Management",
+        cropsForThisField: "Crops for this field",
+        currentField: "Current Field",
+        savedFieldProfiles: "Saved Field Profiles",
+        newProfile: "New Profile",
+        noProfilesSaved: "No profiles saved yet.",
+        edit: "Edit",
+        delete: "Delete",
+        crop: "Crop",
+        selectSoilType: "Select soil type",
+        selectMethod: "Select method",
+        selectAvailability: "Select availability",
+        autoDetectLocationTitle: "Auto-detect location for field name",
+        autoDetectLocationHint: "Click the location icon to auto-detect your area and set weather location",
+        removeFieldTitle: "Remove field",
+        plantingDateLabel: "Planting date (dd-mm-yyyy)",
+        fertilizersUsedLabel: "Fertilizers used (comma-separated)",
+        pesticidesUsedLabel: "Pesticides/herbicides used (comma-separated)",
+        previousCropLabel: "Previous crop (optional)",
+        soilTestLabel: "Soil test results (optional)",
+        fieldSizePlaceholder: "5.0",
+        fieldNamePlaceholder: "North Field",
+        plantingDatePlaceholder: "15-06-2025",
+        fertilizerPlaceholder: "NPK, Urea, DAP",
+        pesticidePlaceholder: "Neem Oil",
+        previousCropPlaceholder: "Wheat",
+        soilNPlaceholder: "e.g., 85",
+        soilPPlaceholder: "e.g., 40",
+        soilKPlaceholder: "e.g., 42",
+        soilpHPlaceholder: "e.g., 6.5",
+        cropTypePlaceholder: "e.g., Rice",
+        saveFieldsContinue: "Save Fields & Continue",
+        updateFieldsContinue: "Update Fields & Continue",
         pesticidesPlaceholder: "List any pesticides or herbicides used..."
+      },
+      
+      // Added: Field Location selection & autofill
+      dataInputLocation: {
+        fieldLocation: "Field Location",
+        pickOnMap: "Pick on Map",
+        selectedLocation: "Selected Location",
+        fetchingLocationData: "Fetching location data...",
+        autofilledFromLocation: "Autofilled from location",
+        village: "Village",
+        district: "District",
+        state: "State",
+        landUse: "Land Use",
+        soilDepth: "Soil Depth",
+        organicCarbon: "Organic Carbon",
+        applied: "Applied",
+        details: "Details",
+        yourFieldIsInVD: "Your field is in {{village}}, {{district}}.",
+        yourFieldIsInD: "Your field is in {{district}}.",
+        yourFieldIsInVillage: "Your field is in {{village}}."
       },
       
       // Suggestions
@@ -182,7 +293,12 @@ const resources = {
         updateFarmData: "Update Farm Data",
         downloadReport: "Download Report",
         undo: "Undo",
-        markAsDone: "Mark as Done"
+        markAsDone: "Mark as Done",
+        irrigationCategory: "Irrigation",
+        fertilizerCategory: "Fertilizer", 
+        pestControlCategory: "Pest Control",
+        soilHealthCategory: "Soil Health",
+        harvestCategory: "Harvest"
       },
       
       // Tutorial
@@ -366,6 +482,18 @@ const resources = {
         month3: "3M",
         month6: "6M",
         year1: "1Y"
+      },
+      
+      // Navigation
+      navigation: {
+        completeDataInputFirst: "Complete data input first"
+      },
+      
+      // General
+      general: {
+        high: "High",
+        medium: "Medium",
+        low: "Low"
       },
       
       // Status

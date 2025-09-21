@@ -23,7 +23,7 @@ const Login: React.FC = () => {
       const user = authenticateUser(email, password);
       
       if (!user) {
-        setError('Invalid email or password. Try e@gmail.com or n@gmail.com with any password.');
+        setError(t('auth.invalidCredentials'));
         setLoading(false);
         return;
       }
@@ -41,7 +41,7 @@ const Login: React.FC = () => {
       // This will check for tutorial, farm data, etc. in the correct order
       navigate('/');
     } catch (err) {
-      setError('Login failed. Please try again.');
+      setError(t('auth.loginFailed'));
     } finally {
       setLoading(false);
     }
@@ -98,12 +98,12 @@ const Login: React.FC = () => {
         )}
 
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700 mb-2"><strong>Demo Credentials:</strong></p>
-          <p className="text-xs text-blue-600">📧 Existing User: <strong>e@gmail.com</strong> (goes to Dashboard)</p>
-          <p className="text-xs text-blue-600">📧 New User: <strong>n@gmail.com</strong> (tutorial + data input)</p>
-          <p className="text-xs text-blue-600">📧 Legacy: demo@farm.com (also goes to Dashboard)</p>
-          <p className="text-xs text-blue-600">🔐 Password: Any password works</p>
-          <p className="text-xs text-green-600 mt-1">✨ <strong>Try n@gmail.com to see the tutorial!</strong></p>
+          <p className="text-sm text-blue-700 mb-2"><strong>{t('auth.demoCredentials')}</strong></p>
+          <p className="text-xs text-blue-600">📧 {t('auth.existingUser')} <strong>e@gmail.com</strong> {t('auth.goesToDashboard')}</p>
+          <p className="text-xs text-blue-600">📧 {t('auth.newUser')} <strong>n@gmail.com</strong> {t('auth.tutorialAndDataInput')}</p>
+          <p className="text-xs text-blue-600">📧 {t('auth.legacyUser')} demo@farm.com {t('auth.alsoGoesToDashboard')}</p>
+          <p className="text-xs text-blue-600">🔐 {t('auth.anyPassword')}</p>
+          <p className="text-xs text-green-600 mt-1">✨ <strong>{t('auth.tryNewUser')}</strong></p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -118,7 +118,7 @@ const Login: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="demo@farm.com"
+                placeholder={t('auth.emailPlaceholder')}
                 required
               />
             </div>
@@ -135,7 +135,7 @@ const Login: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="••••••••"
+                placeholder={t('auth.passwordPlaceholder')}
                 required
               />
             </div>
@@ -163,7 +163,7 @@ const Login: React.FC = () => {
             disabled={loading}
             className="w-full bg-leaf-green text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {loading ? 'Signing in...' : t('login')}
+            {loading ? t('auth.signingIn') : t('login')}
           </button>
         </form>
 

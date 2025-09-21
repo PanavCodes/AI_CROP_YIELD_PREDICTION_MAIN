@@ -84,7 +84,7 @@ const Navigation: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05, duration: 0.2 }} // Reduced delay and duration
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-400 cursor-not-allowed"
-                  title="Complete data input first"
+                  title={t('navigation.completeDataInputFirst')}
                 >
                   <Icon />
                   <span>{item.label}</span>
@@ -223,7 +223,7 @@ const Navigation: React.FC = () => {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05, duration: 0.2 }} // Reduced delay
                     className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 cursor-not-allowed"
-                    title="Complete data input first"
+                    title={t('navigation.completeDataInputFirst')}
                   >
                     <Icon />
                     <span>{item.label}</span>

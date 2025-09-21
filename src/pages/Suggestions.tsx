@@ -31,6 +31,17 @@ const Suggestions: React.FC = () => {
     return icons[category] || '📋';
   };
 
+  const getCategoryDisplayName = (category: string) => {
+    const categoryMap: { [key: string]: string } = {
+      'irrigation': t('suggestions.irrigationCategory'),
+      'fertilizer': t('suggestions.fertilizerCategory'),
+      'pest control': t('suggestions.pestControlCategory'),
+      'soil health': t('suggestions.soilHealthCategory'),
+      'harvest': t('suggestions.harvestCategory')
+    };
+    return categoryMap[category] || category;
+  };
+
   const filteredSuggestions = filter === 'all' 
     ? mockOptimizations 
     : mockOptimizations.filter(opt => opt.category.toLowerCase() === filter);
@@ -72,7 +83,7 @@ const Suggestions: React.FC = () => {
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  {cat === 'all' ? t('suggestions.all') : t(`suggestions.${cat.replace(' ', '')}` as any) || cat}
+                  {cat === 'all' ? t('suggestions.all') : getCategoryDisplayName(cat)}
                 </button>
               ))}
             </div>
@@ -139,7 +150,7 @@ const Suggestions: React.FC = () => {
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${
                           getPriorityBadge(suggestion.priority)
                         }`}>
-                          {t(`suggestions.${suggestion.priority}` as any)}
+                          {t(`suggestions.${suggestion.priority}`)}
                         </span>
                       </div>
                       
@@ -155,7 +166,7 @@ const Suggestions: React.FC = () => {
                       
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                          {suggestion.category}
+                          {getCategoryDisplayName(suggestion.category.toLowerCase())}
                         </span>
                         <button
                           onClick={() => toggleCompleted(suggestion.id)}

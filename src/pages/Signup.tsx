@@ -41,7 +41,7 @@ const Signup: React.FC = () => {
       // New users always go to data input first
       navigate('/data-input');
     } catch (err) {
-      setError('Signup failed. Please try again.');
+      setError(t('auth.signupFailed'));
     } finally {
       setLoading(false);
     }
@@ -105,8 +105,8 @@ const Signup: React.FC = () => {
         )}
 
         <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-sm text-green-700 mb-1"><strong>New User Registration:</strong></p>
-          <p className="text-xs text-green-600">After signup, you'll be guided to input your farm data</p>
+          <p className="text-sm text-green-700 mb-1"><strong>{t('auth.newUserRegistration')}</strong></p>
+          <p className="text-xs text-green-600">{t('auth.afterSignupGuide')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -122,7 +122,7 @@ const Signup: React.FC = () => {
                 value={formData.name}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="John Farmer"
+                placeholder={t('auth.namePlaceholder')}
                 required
               />
             </div>
@@ -140,7 +140,7 @@ const Signup: React.FC = () => {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="farmer@example.com"
+                placeholder={t('auth.signupEmailPlaceholder')}
                 required
               />
             </div>
@@ -158,7 +158,7 @@ const Signup: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="+91 98765 43210"
+                placeholder={t('auth.phonePlaceholder')}
                 required
               />
             </div>
@@ -194,7 +194,7 @@ const Signup: React.FC = () => {
                 value={formData.location}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="Punjab, India"
+                placeholder={t('auth.locationPlaceholder')}
                 required
               />
             </div>
@@ -212,7 +212,7 @@ const Signup: React.FC = () => {
                 value={formData.farmSize}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="5 hectares"
+                placeholder={t('auth.farmSizePlaceholder')}
                 required
               />
             </div>
@@ -223,7 +223,7 @@ const Signup: React.FC = () => {
             disabled={loading}
             className="w-full bg-leaf-green text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {loading ? 'Creating account...' : t('signup')}
+            {loading ? t('auth.creatingAccount') : t('signup')}
           </button>
         </form>
 

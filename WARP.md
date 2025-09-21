@@ -2,100 +2,154 @@
 
 This file provides guidance to WARP (warp.dev) when working with code in this repository.
 
-Project: Crop Prediction App (React + Vite + TypeScript)
+## Development Commands
 
-Commands
+### Core Development
+```bash
+# Install dependencies (use legacy peer deps for compatibility)
+npm install --legacy-peer-deps
 
-- Install dependencies
-  - npm ci
-  - If install fails due to peer deps: npm install --legacy-peer-deps
+# Start development server (runs on http://localhost:3000)
+npm run dev
+# Alternative start command
+npm start
 
-- Start dev server (Vite, opens at http://localhost:3000)
-  - npm run dev
-  - npm start
+# Build for production
+npm run build
 
-- Build (type-checks then bundles to dist/)
-  - npm run build
+# Preview production build
+npm run preview
 
-- Preview production build (serves dist/)
-  - npm run preview
+# Run tests
+npm run test
+```
 
-- Tests (Vitest + Testing Library)
-  - Run all tests (watch): npm test
-  - Run once (CI style): npm run test -- --run
-  - Run a single file: npm run test -- src/App.test.tsx
-  - Run tests by name/pattern: npm run test -- -t "renders learn react link"
+### Development Notes
+- Development server auto-opens browser by default (configured in vite.config.ts)
+- Uses Vite for fast development and building
+- TypeScript compilation happens during build process (`tsc --noEmit && vite build`)
 
-Notes: No linter configured in this repo (no ESLint/Prettier scripts found).
+## Architecture Overview
 
-High-level architecture
+### Tech Stack
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite with path aliases (`@/` → `src/`)
+- **Styling**: TailwindCSS with custom agricultural color palette
+- **Routing**: React Router DOM v7
+- **Internationalization**: i18next (English/Hindi support)
+- **Charts**: Recharts for data visualization
+- **Icons**: React Icons (Feather, Game Icons)
+- **Animations**: Framer Motion for smooth transitions
 
-- App shell and routing
-  - Single-page app using React Router (BrowserRouter) in src/App.tsx
-  - Route guard pattern:
-    - PrivateRoute wraps protected routes and redirects unauthenticated users to /login
-    - AuthenticatedRedirect (/) routes users based on profile state:
-      - New-user tutorial gate via needsTutorial(user)
-      - Farm data completion gate (hasFarmData) redirects to /data-input
-  - Top-level layout (AppLayout) shows Navigation and AIChatbot only for authenticated routes
+### Project Structure
+```
+src/
+├── components/           # Reusable UI components
+│   ├── ui/              # Basic UI components (Button, Input, Header)
+│   ├── Navigation.tsx   # Main navigation with mobile support
+│   ├── AIChatbot.tsx    # AI assistant interface
+│   ├── OnboardingFlow.tsx # New user tutorial flow
+│   └── WeatherDashboard.tsx # Weather data display
+├── pages/               # Route-specific page components
+│   ├── Login.tsx        # Authentication
+│   ├── Dashboard.tsx    # Main dashboard with weather, predictions, charts
+│   ├── DataInput.tsx    # Farm data input forms
+│   ├── Suggestions.tsx  # AI optimization recommendations
+│   └── Community.tsx    # Forum interface (UI-only)
+├── utils/               # Utility functions and configurations
+│   ├── userUtils.ts     # User management and authentication
+│   ├── i18n.ts         # Internationalization setup
+│   └── notificationUtils.ts # Notification system
+├── mockData/            # Demo data for prototype
+│   └── mockData.ts      # Weather, predictions, optimization data
+└── App.tsx              # Main app with routing and authentication
+```
 
-- Authentication and session model (mocked)
-  - Local-only mock auth in src/utils/userUtils.ts using localStorage
-  - isAuthenticated(), getCurrentUser(), saveUserSession(), updateUserFarmData(), needsTutorial()
-  - Special-case flow for the demo user n@gmail.com: restricted to onboarding and data-input until completion
+### Key Features & User Flows
 
-- Internationalization (i18n)
-  - i18next configured in src/utils/i18n.ts and initialized application-wide
-  - English (en) and Hindi (hi) resources defined inline
-  - Language preference persisted to localStorage; language switchers in UI (e.g., Navigation, Login/Signup)
+#### Authentication System
+- Mock authentication with predefined users:
+  - `demo@farm.com` / `e@gmail.com` → Existing users (complete data)
+  - `n@gmail.com` → New user (triggers tutorial + data input flow)
+  - Any email → New signup registration
+- User state managed via localStorage with UserUtils interface
 
-- UI and styling
-  - TailwindCSS with custom agricultural color palette (tailwind.config.js)
-  - Design tokens (colors/typography) extended; utility-first styling throughout
-  - UI primitives in src/components/ui (Button, Header, Input)
+#### User Flow Architecture
+The app implements a sophisticated user flow system:
 
-- Core pages and flows
-  - Authentication: src/pages/Login.tsx, src/pages/Signup.tsx
-  - Onboarding flow: src/components/OnboardingFlow.tsx orchestrates tutorial and initial data collection
-  - Farm data input: src/pages/DataInput.tsx supports manual form and mock CSV/Excel upload
-  - Main features:
-    - Dashboard: src/pages/Dashboard.tsx (weather, predictions, charts, AI yield modal)
-    - Suggestions: src/pages/Suggestions.tsx (categorized optimization tasks with completion state)
-    - Market Insights: src/pages/MarketInsights.tsx
-    - Community: src/pages/Community.tsx
-    - Profile Settings: src/pages/profile-settings
+1. **New Users (`n@gmail.com`)**:
+   - Login → OnboardingFlow (tutorial) → DataInput → restricted Dashboard access
+   - Navigation items are visible but disabled until farm data is complete
 
-- Data and utilities
-  - Mock domain data in src/mockData/mockData.ts (weather, yields, optimization suggestions, etc.)
-  - User/session helpers in src/utils/userUtils.ts
-  - Notifications in src/utils/notificationUtils.ts consumed by Navigation/NotificationIcon
-  - Misc utilities in src/lib/utils.ts
+2. **Existing Users**:
+   - Login → Full Dashboard access with all features enabled
 
-- Project configuration and build
-  - Vite config (vite.config.ts):
-    - Alias @ -> ./src
-    - Dev server: port 3000, open: true
-    - Build outDir: dist, sourcemap: true
-    - assetsInclude for common image types
-  - TypeScript config (tsconfig.json):
-    - Strict mode; path mapping "@/*" -> "src/*"
-    - noEmit builds; tsc used for type-checking in build script
+3. **Route Protection**:
+   - `PrivateRoute` component enforces authentication
+   - `AuthenticatedRedirect` determines user destination based on completion status
 
-- Testing setup
-  - Vitest test runner via script "test": "vitest"
-  - Testing Library and jest-dom set up in src/setupTests.ts (global matchers)
-  - Example test: src/App.test.tsx
+#### State Management Pattern
+- **User State**: Managed through `userUtils.ts` with localStorage persistence
+- **Mock Data**: Centralized in `mockData/mockData.ts` for consistent demo experience
+- **Internationalization**: Language preference persisted across sessions
+- **Navigation State**: Dynamic rendering based on user completion status
 
-Repository conventions and tips (actionable)
+### Design System
 
-- Use path aliases for imports (Vite + TS):
-  - import Something from '@/components/Navigation'
-- When adding tests, keep them alongside components or under src/** with .test.tsx and they will be picked up by Vitest
-- Production build artifacts are emitted to dist/
+#### Color Palette
+- **Agricultural Theme**: earth-brown, leaf-green, sky-blue, wheat-gold, soil-dark
+- **AI/Professional**: ai-purple, success-green, info-blue, warning-orange
+- **System Colors**: Defined with CSS variables for theming support
 
-Key context from README.md
+#### Component Architecture
+- **Reusable UI Components**: Located in `components/ui/` following shadcn/ui patterns
+- **Route Transitions**: `RouteTransition` and `PageTransition` components for smooth navigation
+- **Responsive Design**: Mobile-first approach with TailwindCSS breakpoints
 
-- This is a prototype with mocked authentication, data, and AI outputs for demo purposes
-- Demo behavior: any password works; sample emails influence flow
-  - e@gmail.com (existing user): routed to dashboard
-  - n@gmail.com (new user): forced through tutorial and data input before gaining full access
+### Development Patterns
+
+#### TypeScript Integration
+- Strict TypeScript configuration with path mapping (`@/*` aliases)
+- Interface definitions for User, Location, Weather data types
+- Type-safe component props and utility functions
+
+#### Internationalization
+- i18next configuration with English/Hindi translations
+- Translation keys organized by feature (`nav.*, auth.*, dashboard.*`)
+- Persistent language selection with localStorage
+
+#### Mock Data Strategy
+- Comprehensive mock data covering weather, predictions, optimizations
+- Realistic agricultural scenarios for demonstration
+- Centralized data management for easy updates
+
+### Key Components
+
+#### Navigation.tsx
+- Adaptive navigation with user status awareness
+- Mobile-responsive with collapsible menu
+- Profile dropdown with language switching
+- Disabled states for incomplete user flows
+
+#### OnboardingFlow.tsx & Tutorial.tsx
+- Multi-step tutorial system for new users
+- Progressive disclosure of application features
+- Skip option with completion tracking
+
+#### Dashboard.tsx
+- Weather dashboard with current conditions and forecasts
+- AI prediction displays with confidence metrics
+- Interactive charts using Recharts
+- Quick action panels for common tasks
+
+### Testing & Development Notes
+- Uses Vitest for testing framework
+- Mock authentication system for development
+- Hot reload enabled via Vite
+- TypeScript compilation checked during build process
+
+### Environment Setup
+- Node.js v14+ required
+- Port 3000 default for development server
+- Source maps enabled for debugging
+- Path aliases configured for clean imports

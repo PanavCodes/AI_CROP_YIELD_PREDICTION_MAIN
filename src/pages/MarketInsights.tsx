@@ -331,7 +331,7 @@ const MarketInsights: React.FC = () => {
                         ? 'bg-yellow-100 text-yellow-700'
                         : 'bg-red-100 text-red-700'
                     }`}>
-                      {t(`marketInsights.${mandi.availability.toLowerCase()}`)}
+                      {t(`general.${mandi.availability.toLowerCase()}`)}
                     </span>
                   </div>
                 </div>
