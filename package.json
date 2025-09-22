@@ -13,6 +13,7 @@
     "@types/react-dom": "^18.3.7",
     "@types/react-router-dom": "^5.3.3",
     "autoprefixer": "^10.4.21",
+    "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.15",
@@ -24,7 +25,9 @@
     "react-hook-form": "^7.62.0",
     "react-i18next": "^13.5.0",
     "react-icons": "^5.5.0",
+    "react-markdown": "^9.1.0",
     "react-router-dom": "^7.9.1",
+    "react-syntax-highlighter": "^15.6.6",
     "recharts": "^3.2.1",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.17",
@@ -36,7 +39,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest",
-    "backend": "cd server && npm start",
+    "backend": "cd server && cross-env GEMINI_API_KEY=AIzaSyBYrz7BaZEaO7Waj7_8bAyMqXVxFiRjaN0 npm start",
     "frontend": "npm run dev",
     "start": "concurrently \"npm run backend\" \"npm run frontend\"",
     "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run backend\" \"npm run frontend\""
@@ -55,8 +58,11 @@
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
+    "@types/react-icons": "^2.2.7",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "@vitejs/plugin-react": "^5.0.3",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
     "vite": "^7.1.6",
     "vitest": "^3.2.4"
   }

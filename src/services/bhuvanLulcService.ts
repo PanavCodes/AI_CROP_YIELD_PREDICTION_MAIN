@@ -477,5 +477,3 @@ class BhuvanLulcService {
 const bhuvanLulcService = new BhuvanLulcService();
 export default bhuvanLulcService;
 
-// Export types
-export type { LulcClassification, LulcResponse };

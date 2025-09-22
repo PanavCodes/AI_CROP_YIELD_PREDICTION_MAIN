@@ -546,5 +546,3 @@ class IntegratedLocationService {
 const integratedLocationService = new IntegratedLocationService();
 export default integratedLocationService;
 
-// Export types
-export type { FieldLocationData };

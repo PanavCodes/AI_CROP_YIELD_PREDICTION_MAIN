@@ -129,6 +129,10 @@ const DataInput: React.FC = () => {
   const [loadingData, setLoadingData] = useState(false);
   const [dataStats, setDataStats] = useState<any>(null);
   const [showDataTable, setShowDataTable] = useState(false);
+  const [dataFetched, setDataFetched] = useState(() => {
+    // Check if data was already fetched in this session
+    return sessionStorage.getItem('cropDataFetched') === 'true';
+  });
 
   // Update form when currentFieldIndex changes
   useEffect(() => {
@@ -175,15 +179,31 @@ const DataInput: React.FC = () => {
     if (user && isNewUser(user)) {
       setShowNewUserMessage(true);
     }
-    // Fetch existing data when component mounts
-    fetchCropData();
-  }, []);
+    // Fetch existing data when component mounts (only once per session)
+    if (!dataFetched) {
+      console.log('🔍 DEBUG: DataInput mounted, fetching data for the first time...');
+      fetchCropData();
+      setDataFetched(true);
+      sessionStorage.setItem('cropDataFetched', 'true');
+    } else {
+      console.log('🔍 DEBUG: DataInput mounted but data already fetched this session, skipping...');
+    }
+  }, [dataFetched]);
 
   // Function to fetch crop data from backend
   const fetchCropData = async () => {
+    if (loadingData) {
+      console.log('🔍 DEBUG: Already loading data, skipping duplicate request...');
+      return;
+    }
+    
     setLoadingData(true);
     try {
       console.log('🔍 DEBUG: Fetching crop data from backend...');
+      
+      // Set the flag to prevent future automatic fetches
+      setDataFetched(true);
+      sessionStorage.setItem('cropDataFetched', 'true');
       
       // Fetch crop data
       const dataResponse = await fetch('http://localhost:5000/api/crop-data?limit=100');
@@ -481,7 +501,9 @@ const DataInput: React.FC = () => {
         setCurrentUser(updatedUser);
       }
 
-      // Fetch and show the uploaded data
+      // Fetch and show the uploaded data (clear flag to allow refetch)
+      sessionStorage.removeItem('cropDataFetched');
+      setDataFetched(false);
       await fetchCropData();
       setShowDataTable(true);
       
@@ -717,9 +739,9 @@ const DataInput: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 transition-colors duration-200">
       <div className="max-w-5xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden transition-colors duration-200">
           <div className="bg-gradient-to-r from-leaf-green to-green-600 p-6">
             <h1 className="text-3xl font-bold text-white flex items-center gap-3">
               <GiWheat className="text-4xl" />
@@ -738,9 +760,9 @@ const DataInput: React.FC = () => {
 
           <div className="p-6">
             {/* Field Location selection & autofill */}
-            <div className="mb-6 bg-gray-50 border rounded-xl p-4">
+            <div className="mb-6 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-md font-semibold text-gray-800">{t('dataInputLocation.fieldLocation')}</h2>
+                <h2 className="text-md font-semibold text-gray-800 dark:text-gray-200">{t('dataInputLocation.fieldLocation')}</h2>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -753,7 +775,7 @@ const DataInput: React.FC = () => {
               </div>
 
               {selectedLocation && (
-                <div className="text-sm text-gray-700 mb-2">
+                <div className="text-sm text-gray-700 dark:text-gray-300 mb-2">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-gray-500" />
                     <span className="font-medium">{t('dataInputLocation.selectedLocation')}:</span>
@@ -762,7 +784,7 @@ const DataInput: React.FC = () => {
                     </span>
                   </div>
                   {adminInfo && (
-                    <div className="mt-1 text-gray-600">
+                    <div className="mt-1 text-gray-600 dark:text-gray-400">
                       {adminInfo.village && adminInfo.district && (
                         <span>{t('dataInputLocation.yourFieldIsInVD', { village: adminInfo.village, district: adminInfo.district })}</span>
                       )}

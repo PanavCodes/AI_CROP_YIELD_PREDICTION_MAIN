@@ -53,16 +53,16 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-leaf-green via-sky-blue to-wheat-gold flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
+    <div className="min-h-screen bg-gradient-to-br from-leaf-green via-sky-blue to-wheat-gold dark:from-gray-900 dark:via-gray-800 dark:to-gray-700 flex items-center justify-center px-4 transition-colors duration-200">
+      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 transition-colors duration-200">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <GiWheat className="text-6xl text-leaf-green" />
           </div>
-          <h2 className="text-3xl font-bold text-soil-dark mb-2">
+          <h2 className="text-3xl font-bold text-soil-dark dark:text-white mb-2">
             {t('welcome')}
           </h2>
-          <p className="text-gray-600">{t('login')}</p>
+          <p className="text-gray-600 dark:text-gray-300">{t('login')}</p>
         </div>
 
         <div className="flex justify-center gap-2 mb-6">
@@ -71,7 +71,7 @@ const Login: React.FC = () => {
             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
               i18n.language === 'en'
                 ? 'bg-leaf-green text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
             }`}
           >
             <FiGlobe />
@@ -82,7 +82,7 @@ const Login: React.FC = () => {
             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
               i18n.language === 'hi'
                 ? 'bg-leaf-green text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'
             }`}
           >
             <FiGlobe />
@@ -108,7 +108,7 @@ const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t('auth.email')}
             </label>
             <div className="relative">
@@ -117,7 +117,7 @@ const Login: React.FC = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder={t('auth.emailPlaceholder')}
                 required
               />
@@ -125,7 +125,7 @@ const Login: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               {t('auth.password')}
             </label>
             <div className="relative">
@@ -134,7 +134,7 @@ const Login: React.FC = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder={t('auth.passwordPlaceholder')}
                 required
               />

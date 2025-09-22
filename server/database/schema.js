@@ -3,18 +3,32 @@ const path = require('path');
 
 class CropDatabase {
   constructor() {
-    // Create database file in data directory
-    const dbPath = path.join(__dirname, '..', 'data', 'crop_data.db');
-    this.db = new Database(dbPath);
-    this.connection = this.db.connect();
-    
-    this.initializeSchema();
+    try {
+      // Create database file in data directory
+      const dbPath = path.join(__dirname, '..', 'data', 'crop_data.db');
+      console.log(`🔍 Database path: ${dbPath}`);
+      
+      this.db = new Database(dbPath);
+      this.connection = this.db.connect();
+      
+      console.log('🔌 Database connection established');
+      this.initializeSchema();
+    } catch (error) {
+      console.error('❌ Database constructor failed:', error);
+      throw error;
+    }
   }
 
   async initializeSchema() {
     try {
+      console.log('🔧 Initializing database schema...');
+      
+      // Test connection first
+      await this.run('SELECT 1 as connection_test');
+      console.log('✅ Database connection verified');
+      
       // Create simple crop_data table
-      console.log('Creating crop_data table...');
+      console.log('📋 Creating crop_data table...');
       await this.run(`
         CREATE TABLE IF NOT EXISTS crop_data (
           id BIGINT,
@@ -30,9 +44,10 @@ class CropDatabase {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      console.log('✅ crop_data table ready');
 
       // Create upload_batches table
-      console.log('Creating upload_batches table...');
+      console.log('📋 Creating upload_batches table...');
       await this.run(`
         CREATE TABLE IF NOT EXISTS upload_batches (
           batch_id VARCHAR,
@@ -46,10 +61,12 @@ class CropDatabase {
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      console.log('✅ upload_batches table ready');
 
       console.log('✅ Database schema initialized successfully');
     } catch (error) {
       console.error('❌ Error initializing database schema:', error);
+      console.error('❌ Schema error details:', error.message);
       throw error;
     }
   }
@@ -93,8 +110,8 @@ class CropDatabase {
       return [];
     }
     
-    console.log(`🔍 DEBUG: Received ${records.length} records for insertion`);
-    console.log('🔍 DEBUG: First record:', JSON.stringify(records[0], null, 2));
+    // console.log(`🔍 DEBUG: Received ${records.length} records for insertion`);
+    // console.log('🔍 DEBUG: First record:', JSON.stringify(records[0], null, 2));
     
     const timestamp = Date.now();
     
@@ -121,7 +138,7 @@ class CropDatabase {
       `;
       
       console.log(`💾 Inserting ${records.length} records in single bulk operation`);
-      console.log(`🔍 DEBUG: Query start:`, query.substring(0, 300) + '...');
+      // console.log(`🔍 DEBUG: Query start:`, query.substring(0, 300) + '...');
       
       // Execute the bulk insert
       const insertResult = await this.run(query);
@@ -129,11 +146,11 @@ class CropDatabase {
       
       // Verify insertion worked by counting records
       const countResult = await this.run('SELECT COUNT(*) as count FROM crop_data');
-      console.log(`🔍 DEBUG: Total records in database after insertion:`, countResult);
+      // console.log(`🔍 DEBUG: Total records in database after insertion:`, countResult);
       
       // Test immediate retrieval
       const testQuery = await this.run('SELECT * FROM crop_data LIMIT 3');
-      console.log(`🔍 DEBUG: Sample records from database:`, testQuery);
+      // console.log(`🔍 DEBUG: Sample records from database:`, testQuery);
       
       return [{ batch: 1, count: records.length }];
       
@@ -183,10 +200,10 @@ class CropDatabase {
     
     query += ` ORDER BY id DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
     
-    console.log('🔍 DEBUG: Executing query:', query);
+    // console.log('🔍 DEBUG: Executing query:', query);
     const result = await this.run(query); // No parameters
-    console.log('🔍 DEBUG: Query result length:', result?.length || 0);
-    console.log('🔍 DEBUG: First few results:', result?.slice(0, 2));
+    // console.log('🔍 DEBUG: Query result length:', result?.length || 0);
+    // console.log('🔍 DEBUG: First few results:', result?.slice(0, 2));
     return result;
   }
 
@@ -229,8 +246,18 @@ class CropDatabase {
   }
 
   close() {
-    this.connection.close();
-    this.db.close();
+    try {
+      if (this.connection) {
+        this.connection.close();
+        console.log('🔌 Database connection closed');
+      }
+      if (this.db) {
+        this.db.close();
+        console.log('🗄️ Database instance closed');
+      }
+    } catch (error) {
+      console.error('❌ Error closing database:', error.message);
+    }
   }
 }
 

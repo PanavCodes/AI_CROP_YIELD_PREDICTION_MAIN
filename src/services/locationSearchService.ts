@@ -140,15 +140,15 @@ class LocationSearchService {
     let score = 0;
     
     // Exact name match (highest priority)
-    if (location.name.toLowerCase() === query) {
+    if (location.name?.toLowerCase() === query) {
       score += 100;
     }
     // Name starts with query
-    else if (location.name.toLowerCase().startsWith(query)) {
+    else if (location.name?.toLowerCase().startsWith(query)) {
       score += 80;
     }
     // Name contains query
-    else if (location.name.toLowerCase().includes(query)) {
+    else if (location.name?.toLowerCase().includes(query)) {
       score += 60;
     }
     
@@ -239,7 +239,7 @@ class LocationSearchService {
     ];
 
     return this.agriculturalCenters
-      .filter(location => popular.includes(location.name))
+      .filter(location => location.name && popular.includes(location.name))
       .map(location => ({
         location,
         relevance: 90,
@@ -272,25 +272,25 @@ class LocationSearchService {
     longitude: number, 
     radiusKm: number = 100
   ): SearchResult[] {
-    return this.agriculturalCenters
-      .map(location => {
-        const distance = this.calculateDistance(
-          latitude, longitude,
-          location.latitude, location.longitude
-        );
-        
-        if (distance <= radiusKm) {
-          return {
-            location,
-            relevance: Math.max(10, 100 - distance), // Higher relevance for closer locations
-            type: 'agricultural' as const,
-            description: `${distance.toFixed(0)}km away`
-          };
-        }
-        return null;
-      })
-      .filter((result): result is SearchResult => result !== null)
-      .sort((a, b) => b.relevance - a.relevance);
+    const nearbyResults: SearchResult[] = [];
+    
+    this.agriculturalCenters.forEach(location => {
+      const distance = this.calculateDistance(
+        latitude, longitude,
+        location.latitude, location.longitude
+      );
+      
+      if (distance <= radiusKm) {
+        nearbyResults.push({
+          location,
+          relevance: Math.max(10, 100 - distance), // Higher relevance for closer locations
+          type: 'agricultural',
+          description: `${distance.toFixed(0)}km away`
+        });
+      }
+    });
+    
+    return nearbyResults.sort((a, b) => b.relevance - a.relevance);
   }
 
   /**
@@ -320,5 +320,3 @@ class LocationSearchService {
 const locationSearchService = new LocationSearchService();
 export default locationSearchService;
 
-// Export types
-export type { SearchResult };

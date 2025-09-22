@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 // Import our services
 const CropDatabase = require('./database/schema');
@@ -29,11 +31,29 @@ const ensureDirectories = () => {
 // Initialize database
 const initializeDatabase = async () => {
   try {
+    console.log('🔄 Initializing database...');
     db = new CropDatabase();
-    console.log('🗄️ Database initialized successfully');
+    // Wait for schema initialization to complete
+    await new Promise((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          // Test database connection
+          db.run('SELECT 1 as test')
+            .then(() => {
+              console.log('🗄️ Database initialized and tested successfully');
+              resolve();
+            })
+            .catch(reject);
+        } catch (err) {
+          reject(err);
+        }
+      }, 100); // Small delay to allow schema initialization
+    });
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
-    process.exit(1);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Stack trace:', error.stack);
+    throw error; // Don't exit immediately, let the caller handle it
   }
 };
 
@@ -41,6 +61,11 @@ const initializeDatabase = async () => {
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Add a custom JSON serializer for BigInt values
+BigInt.prototype.toJSON = function() {
+  return this.toString();
+};
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -75,6 +100,13 @@ const upload = multer({
 // POST /api/upload/csv - Upload and process CSV file
 app.post('/api/upload/csv', upload.single('csvFile'), async (req, res) => {
   try {
+    if (!db) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available. CSV upload is disabled.' 
+      });
+    }
+    
     if (!req.file) {
       return res.status(400).json({ 
         success: false, 
@@ -152,6 +184,13 @@ app.post('/api/upload/csv', upload.single('csvFile'), async (req, res) => {
 // GET /api/crop-data - Get crop data with filtering and pagination
 app.get('/api/crop-data', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
     const {
       crop_type,
       state,
@@ -187,9 +226,75 @@ app.get('/api/crop-data', async (req, res) => {
   }
 });
 
+// Chatbot: Gemini proxy endpoint (keeps API key on the server)
+app.post('/api/chat/gemini', async (req, res) => {
+  console.log('📞 Gemini API endpoint called at:', new Date().toISOString());
+  console.log('📞 Request body:', JSON.stringify(req.body, null, 2));
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('❌ GEMINI_API_KEY not configured');
+      return res.status(500).json({ success: false, error: 'GEMINI_API_KEY not configured on server' });
+    }
+
+    const { history } = req.body || {};
+    
+    // Handle empty history for initial requests
+    let contents = [];
+    if (Array.isArray(history) && history.length > 0) {
+      // Map frontend format to Gemini format
+      contents = history.map(item => ({
+        role: item.role === 'model' ? 'model' : 'user',
+        parts: item.parts || [{ text: '' }]
+      }));
+    } else {
+      // If no history, create a default request
+      console.log('⚠️ Empty or invalid history, using default request');
+      contents = [{
+        role: 'user',
+        parts: [{ text: 'Hello, I need help with farming advice.' }]
+      }];
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+    console.log('📤 Sending to Gemini:', JSON.stringify({ contents }, null, 2));
+    const payload = { contents };
+    const response = await axios.post(url, payload, { 
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000 // 30 second timeout
+    });
+
+    const data = response.data;
+    let text = '';
+    if (data?.candidates?.length && data.candidates[0]?.content?.parts?.length) {
+      text = data.candidates[0].content.parts[0].text || '';
+    }
+
+    return res.json({ success: true, text });
+  } catch (err) {
+    const status = err.response?.status || 500;
+    if (status === 429) {
+      return res.status(429).json({ success: false, error: 'Rate limited by Gemini API' });
+    }
+    console.error('❌ Gemini proxy error:', err.message);
+    if (err.response?.data) {
+      console.error('❌ Gemini API response data:', JSON.stringify(err.response.data, null, 2));
+    }
+    return res.status(500).json({ success: false, error: 'Gemini proxy error', details: err.message });
+  }
+});
+
 // GET /api/crop-data/statistics - Get database statistics
 app.get('/api/crop-data/statistics', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'Database not available' 
+      });
+    }
+    
     const stats = await db.getStatistics();
     res.json({
       success: true,
@@ -351,6 +456,7 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     service: 'Field Data API',
+    database: db ? 'connected' : 'unavailable',
     timestamp: new Date().toISOString(),
     version: '1.0.0-hackathon'
   });
@@ -380,38 +486,80 @@ app.get('/api/geocode/bhuvan', async (req, res) => {
 // Initialize and start server
 const startServer = async () => {
   try {
+    console.log('🔄 Starting server initialization...');
     ensureDirectories();
-    await initializeDatabase();
     
-    app.listen(PORT, () => {
+    try {
+      await initializeDatabase();
+    } catch (dbError) {
+      console.error('❌ Database initialization failed:', dbError.message);
+      console.log('🔄 Attempting to continue without database (some features may be limited)');
+      // Set db to null so other parts know database is not available
+      db = null;
+    }
+    
+    const server = app.listen(PORT, () => {
       console.log('');
       console.log('🚀 Crop Data Processing Server Started!');
       console.log(`📡 Server running on http://localhost:${PORT}`);
+      console.log(`🗄️ Database status: ${db ? '✅ Connected' : '❌ Not available'}`);
       console.log('');
       console.log('📋 Available Endpoints:');
-      console.log(`   📤 Upload CSV: POST /api/upload/csv`);
-      console.log(`   📊 Get Data:   GET /api/crop-data`);
-      console.log(`   📈 Statistics: GET /api/crop-data/statistics`);
+      console.log(`   📤 Upload CSV: POST /api/upload/csv ${db ? '' : '(disabled)'}`);
+      console.log(`   📊 Get Data:   GET /api/crop-data ${db ? '' : '(disabled)'}`);
+      console.log(`   📈 Statistics: GET /api/crop-data/statistics ${db ? '' : '(disabled)'}`);
       console.log(`   📍 Field Data: POST /api/fields/ingest-location`);
       console.log(`   💚 Health:     GET /api/health`);
       console.log(`   🌍 Bhuvan:     GET /api/geocode/bhuvan`);
       console.log('');
     });
+    
+    // Handle server errors
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} is already in use. Please try a different port.`);
+      } else {
+        console.error('❌ Server error:', error);
+      }
+      process.exit(1);
+    });
+    
   } catch (error) {
     console.error('❌ Failed to start server:', error);
+    console.error('❌ Error details:', error.message);
     process.exit(1);
   }
 };
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down server...');
-  if (db) {
-    db.close();
-    console.log('🗄️ Database connection closed');
+let isShuttingDown = false;
+
+const gracefulShutdown = (signal) => {
+  if (isShuttingDown) {
+    console.log('\n⏸️ Shutdown already in progress...');
+    return;
   }
+  
+  isShuttingDown = true;
+  console.log(`\n🛑 Received ${signal}, shutting down server gracefully...`);
+  
+  try {
+    if (db) {
+      db.close();
+      console.log('🗄️ Database connection closed');
+    }
+  } catch (error) {
+    console.error('❌ Error closing database:', error.message);
+  }
+  
+  console.log('✅ Server shutdown complete');
   process.exit(0);
-});
+};
+
+// Handle multiple shutdown signals
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // For nodemon
 
 startServer();
 

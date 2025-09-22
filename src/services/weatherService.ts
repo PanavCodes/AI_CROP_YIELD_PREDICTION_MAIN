@@ -399,7 +399,7 @@ class WeatherService {
         severity: 'severe',
         startTime: new Date().toISOString(),
         endTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        areas: [locationName, district, state].filter(Boolean)
+        areas: [locationName, district, state].filter((area): area is string => Boolean(area))
       });
     }
 
@@ -413,7 +413,7 @@ class WeatherService {
         severity: 'moderate',
         startTime: new Date(heavyRainDay.date).toISOString(),
         endTime: new Date(new Date(heavyRainDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString(),
-        areas: [locationName, district, state].filter(Boolean)
+        areas: [locationName, district, state].filter((area): area is string => Boolean(area))
       });
     }
 
@@ -426,7 +426,7 @@ class WeatherService {
         severity: 'minor',
         startTime: new Date().toISOString(),
         endTime: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-        areas: [locationName, district].filter(Boolean)
+        areas: [locationName, district].filter((area): area is string => Boolean(area))
       });
     }
 
@@ -439,7 +439,7 @@ class WeatherService {
         severity: 'moderate',
         startTime: new Date().toISOString(),
         endTime: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
-        areas: [locationName, district].filter(Boolean)
+        areas: [locationName, district].filter((area): area is string => Boolean(area))
       });
     }
 

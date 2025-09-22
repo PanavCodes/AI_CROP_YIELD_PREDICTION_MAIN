@@ -3,10 +3,11 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { useTranslation } from 'react-i18next';
 import './utils/i18n';
 import { isAuthenticated, getCurrentUser, needsTutorial } from './utils/userUtils';
+import { ThemeProvider } from './contexts/ThemeContext';
 
 // Components
 import Navigation from './components/Navigation';
-import AIChatbot from './components/AIChatbot';
+import AIChatbotEnhanced from './components/AIChatbotEnhanced';
 import OnboardingFlow from './components/OnboardingFlow';
 import RouteTransition from './components/RouteTransition';
 
@@ -49,12 +50,12 @@ function App() {
     const showNavigation = location.pathname !== '/login' && location.pathname !== '/signup' && isAuthenticated();
     
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
         {showNavigation && <Navigation />}
         <RouteTransition>
           {children}
         </RouteTransition>
-        {showNavigation && <AIChatbot />}
+        {showNavigation && <AIChatbotEnhanced />}
       </div>
     );
   };
@@ -81,9 +82,10 @@ function App() {
   };
 
   return (
-    <Router>
-      <AppLayout>
-        <Routes>
+    <ThemeProvider>
+      <Router>
+        <AppLayout>
+          <Routes>
           <Route path="/" element={<AuthenticatedRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -145,9 +147,10 @@ function App() {
               </PrivateRoute>
             }
           />
-        </Routes>
-      </AppLayout>
-    </Router>
+          </Routes>
+        </AppLayout>
+      </Router>
+    </ThemeProvider>
   );
 }
 
