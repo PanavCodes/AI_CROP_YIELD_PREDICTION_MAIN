@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiUpload, FiFile, FiCalendar, FiCheck, FiPlus } from 'react-icons/fi';
-import { Trash2, Save, MapPin, Loader, CheckCircle } from 'lucide-react';
+import { Trash2, Save, MapPin, Loader, CheckCircle, TrendingUp } from 'lucide-react';
 import { GiWheat, GiWateringCan } from 'react-icons/gi';
 import { soilTypes, cropTypes, irrigationMethods } from '../mockData/mockData';
 import { getCurrentUser, updateUserFarmData, saveUserSession, isNewUser, updateUserLocation } from '../utils/userUtils';
@@ -17,6 +17,10 @@ import integratedLocationService, { FieldLocationData } from '../services/integr
 interface CropForm {
   crop_type: string;
   planting_date: string; // dd-mm-yyyy
+  season: 'Rabi' | 'Kharif' | 'Zaid' | 'Perennial' | ''; // crop season
+  cultivation_year: string; // year as string for form input
+  expected_yield: string; // expected yield in quintal
+  actual_yield: string; // actual yield in quintal (optional)
   fertilizers_used: string; // comma-separated
   pesticides_used: string; // comma-separated
   previous_crop: string; // optional
@@ -24,6 +28,10 @@ interface CropForm {
   soil_P: string; // optional numeric
   soil_K: string; // optional numeric
   soil_pH: string; // optional numeric
+  // Weather parameters
+  temperature: string; // temperature in celsius
+  humidity: string; // humidity in percentage
+  rainfall: string; // rainfall in mm
 }
 
 interface FieldForm {
@@ -55,10 +63,15 @@ interface FieldProfileJSON {
     crops: Array<{
       crop_type: string;
       planting_date: string; // dd-mm-yyyy
+      season: 'Rabi' | 'Kharif' | 'Zaid' | 'Perennial';
+      cultivation_year: number;
+      expected_yield: number | null;
+      actual_yield: number | null;
       fertilizers_used: string[];
       pesticides_used: string[];
       previous_crop: string | null;
       soil_test_results: null | { N: number | null; P: number | null; K: number | null; pH: number | null };
+      weather_data: null | { temperature: number | null; humidity: number | null; rainfall: number | null };
     }>;
   };
 }
@@ -68,6 +81,10 @@ const IRRIGATION_AVAILABILITY: Array<'None' | 'Low' | 'Medium' | 'High'> = ['Non
 const defaultCrop = (): CropForm => ({
   crop_type: '',
   planting_date: '',
+  season: '',
+  cultivation_year: new Date().getFullYear().toString(),
+  expected_yield: '',
+  actual_yield: '',
   fertilizers_used: '',
   pesticides_used: '',
   previous_crop: '',
@@ -75,6 +92,9 @@ const defaultCrop = (): CropForm => ({
   soil_P: '',
   soil_K: '',
   soil_pH: '',
+  temperature: '',
+  humidity: '',
+  rainfall: '',
 });
 
 const defaultFieldForm: FieldForm = {
@@ -303,9 +323,14 @@ const DataInput: React.FC = () => {
             .map(s => s.trim())
             .filter(Boolean);
           const soilProvided = c.soil_N || c.soil_P || c.soil_K || c.soil_pH;
+          const weatherProvided = c.temperature || c.humidity || c.rainfall;
           return {
             crop_type: c.crop_type.trim(),
             planting_date: c.planting_date.trim(),
+            season: (c.season || 'Rabi') as 'Rabi' | 'Kharif' | 'Zaid' | 'Perennial',
+            cultivation_year: Number(c.cultivation_year) || new Date().getFullYear(),
+            expected_yield: c.expected_yield ? Number(c.expected_yield) : null,
+            actual_yield: c.actual_yield ? Number(c.actual_yield) : null,
             fertilizers_used: ferts,
             pesticides_used: pests,
             previous_crop: c.previous_crop.trim() ? c.previous_crop.trim() : null,
@@ -315,6 +340,13 @@ const DataInput: React.FC = () => {
                   P: c.soil_P ? Number(c.soil_P) : null,
                   K: c.soil_K ? Number(c.soil_K) : null,
                   pH: c.soil_pH ? Number(c.soil_pH) : null,
+                }
+              : null,
+            weather_data: weatherProvided
+              ? {
+                  temperature: c.temperature ? Number(c.temperature) : null,
+                  humidity: c.humidity ? Number(c.humidity) : null,
+                  rainfall: c.rainfall ? Number(c.rainfall) : null,
                 }
               : null,
           };
@@ -335,10 +367,17 @@ const DataInput: React.FC = () => {
     f.crops.forEach((c, i) => {
       if (!c.crop_type.trim()) errs.push(`Crop ${i + 1}: crop type is required.`);
       if (!isValidDateDDMMYYYY(c.planting_date.trim())) errs.push(`Crop ${i + 1}: planting date must be dd-mm-yyyy.`);
+      if (!c.season) errs.push(`Crop ${i + 1}: season is required.`);
+      if (!c.cultivation_year || !Number.isInteger(Number(c.cultivation_year))) errs.push(`Crop ${i + 1}: cultivation year must be a valid year.`);
       if (!isOptionalNumber(c.soil_N)) errs.push(`Crop ${i + 1}: N must be numeric.`);
       if (!isOptionalNumber(c.soil_P)) errs.push(`Crop ${i + 1}: P must be numeric.`);
       if (!isOptionalNumber(c.soil_K)) errs.push(`Crop ${i + 1}: K must be numeric.`);
       if (!isOptionalNumber(c.soil_pH)) errs.push(`Crop ${i + 1}: pH must be numeric.`);
+      if (!isOptionalNumber(c.expected_yield)) errs.push(`Crop ${i + 1}: expected yield must be numeric.`);
+      if (!isOptionalNumber(c.actual_yield)) errs.push(`Crop ${i + 1}: actual yield must be numeric.`);
+      if (!isOptionalNumber(c.temperature)) errs.push(`Crop ${i + 1}: temperature must be numeric.`);
+      if (c.humidity && (Number(c.humidity) < 0 || Number(c.humidity) > 100)) errs.push(`Crop ${i + 1}: humidity must be between 0-100.`);
+      if (!isOptionalNumber(c.rainfall)) errs.push(`Crop ${i + 1}: rainfall must be numeric.`);
     });
 
     return errs;
@@ -535,6 +574,10 @@ const DataInput: React.FC = () => {
       crops: f.crops.map(c => ({
         crop_type: c.crop_type,
         planting_date: c.planting_date,
+        season: (c as any).season || '',
+        cultivation_year: (c as any).cultivation_year ? String((c as any).cultivation_year) : new Date().getFullYear().toString(),
+        expected_yield: (c as any).expected_yield != null ? String((c as any).expected_yield) : '',
+        actual_yield: (c as any).actual_yield != null ? String((c as any).actual_yield) : '',
         fertilizers_used: c.fertilizers_used.join(', '),
         pesticides_used: c.pesticides_used.join(', '),
         previous_crop: c.previous_crop ?? '',
@@ -542,6 +585,9 @@ const DataInput: React.FC = () => {
         soil_P: c.soil_test_results?.P != null ? String(c.soil_test_results.P) : '',
         soil_K: c.soil_test_results?.K != null ? String(c.soil_test_results.K) : '',
         soil_pH: c.soil_test_results?.pH != null ? String(c.soil_test_results.pH) : '',
+        temperature: (c as any).weather_data?.temperature != null ? String((c as any).weather_data.temperature) : '',
+        humidity: (c as any).weather_data?.humidity != null ? String((c as any).weather_data.humidity) : '',
+        rainfall: (c as any).weather_data?.rainfall != null ? String((c as any).weather_data.rainfall) : '',
       })),
     };
     setFields([fieldForm]);
@@ -714,6 +760,8 @@ const DataInput: React.FC = () => {
           soil_P: c.soil_P || (agg.soil?.phosphorus != null ? String(agg.soil.phosphorus) : c.soil_P),
           soil_K: c.soil_K || (agg.soil?.potassium != null ? String(agg.soil.potassium) : c.soil_K),
           soil_pH: c.soil_pH || (agg.soil?.ph != null ? String(agg.soil.ph) : c.soil_pH),
+          // Note: Weather data is typically user-provided rather than auto-filled from location
+          // Users will manually enter temperature, humidity, and rainfall data
         }));
         return { ...prev, crops: updatedCrops };
       });
@@ -736,6 +784,43 @@ const DataInput: React.FC = () => {
   
   const handleFieldDataReceived = (fieldData: FieldLocationData) => {
     setIntegratedFieldData(fieldData);
+  };
+  
+  const handlePredictYield = () => {
+    // Validate that we have the minimum required data
+    if (!form.crops.length || !form.crops[0].crop_type) {
+      setErrors(['Please add at least one crop with crop type to predict yield.']);
+      return;
+    }
+    
+    const firstCrop = form.crops[0];
+    
+    // Check for required fields
+    if (!firstCrop.crop_type || !firstCrop.temperature || !firstCrop.rainfall) {
+      setErrors(['Please provide crop type, temperature, and rainfall data for yield prediction.']);
+      return;
+    }
+    
+    // Prepare data for yield prediction
+    const predictionData = {
+      crop: firstCrop.crop_type,
+      state: adminInfo?.state || selectedLocation?.state || form.field_name.split(' ')[0] || 'Unknown',
+      rainfall: parseFloat(firstCrop.rainfall) || 0,
+      temperature: parseFloat(firstCrop.temperature) || 0,
+      area: parseFloat(form.field_size_hectares) || 1.0,
+      pesticides: 0.0, // Default value, could be enhanced later
+      year: parseInt(firstCrop.cultivation_year) || new Date().getFullYear()
+    };
+    
+    console.log('Navigating to yield prediction with data:', predictionData);
+    
+    // Navigate to yield prediction page with data
+    navigate('/yield-prediction', { 
+      state: { 
+        predictionData,
+        sourceField: form.field_name || 'My Field'
+      } 
+    });
   };
 
   return (
@@ -1213,6 +1298,36 @@ const DataInput: React.FC = () => {
                         </div>
 
                         <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Season</label>
+                          <select
+                            value={c.season}
+                            onChange={(e) => setCropField(idx, 'season', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                            required
+                          >
+                            <option value="">Select Season</option>
+                            <option value="Rabi">Rabi (Winter)</option>
+                            <option value="Kharif">Kharif (Monsoon)</option>
+                            <option value="Zaid">Zaid (Summer)</option>
+                            <option value="Perennial">Perennial (Year-round)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Cultivation Year</label>
+                          <input
+                            type="number"
+                            min="2020"
+                            max="2030"
+                            value={c.cultivation_year}
+                            onChange={(e) => setCropField(idx, 'cultivation_year', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                            placeholder="e.g., 2024"
+                            required
+                          />
+                        </div>
+
+                        <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.fertilizersUsedLabel')}</label>
                           <input
                             type="text"
@@ -1245,46 +1360,118 @@ const DataInput: React.FC = () => {
                           />
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">N</label>
-                            <input
-                              type="text"
-                              value={c.soil_N}
-                              onChange={(e) => setCropField(idx, 'soil_N', e.target.value)}
-                              className="w-full px-2 py-2 border border-gray-300 rounded"
-                              placeholder={t('dataInput.soilNPlaceholder')}
-                            />
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Expected Yield (Quintal)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={c.expected_yield}
+                            onChange={(e) => setCropField(idx, 'expected_yield', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                            placeholder="e.g., 25.5"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Actual Yield (Quintal) <span className="text-gray-500 text-xs">- Optional</span></label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={c.actual_yield}
+                            onChange={(e) => setCropField(idx, 'actual_yield', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                            placeholder="e.g., 23.2"
+                          />
+                        </div>
+
+                        {/* Soil Test Results */}
+                        <div className="col-span-2">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">Soil Test Results (Optional)</h5>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">N</label>
+                              <input
+                                type="text"
+                                value={c.soil_N}
+                                onChange={(e) => setCropField(idx, 'soil_N', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded"
+                                placeholder={t('dataInput.soilNPlaceholder')}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">P</label>
+                              <input
+                                type="text"
+                                value={c.soil_P}
+                                onChange={(e) => setCropField(idx, 'soil_P', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded"
+                                placeholder={t('dataInput.soilPPlaceholder')}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">K</label>
+                              <input
+                                type="text"
+                                value={c.soil_K}
+                                onChange={(e) => setCropField(idx, 'soil_K', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded"
+                                placeholder={t('dataInput.soilKPlaceholder')}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">pH</label>
+                              <input
+                                type="text"
+                                value={c.soil_pH}
+                                onChange={(e) => setCropField(idx, 'soil_pH', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded"
+                                placeholder={t('dataInput.soilpHPlaceholder')}
+                              />
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">P</label>
-                            <input
-                              type="text"
-                              value={c.soil_P}
-                              onChange={(e) => setCropField(idx, 'soil_P', e.target.value)}
-                              className="w-full px-2 py-2 border border-gray-300 rounded"
-                              placeholder={t('dataInput.soilPPlaceholder')}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">K</label>
-                            <input
-                              type="text"
-                              value={c.soil_K}
-                              onChange={(e) => setCropField(idx, 'soil_K', e.target.value)}
-                              className="w-full px-2 py-2 border border-gray-300 rounded"
-                              placeholder={t('dataInput.soilKPlaceholder')}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">pH</label>
-                            <input
-                              type="text"
-                              value={c.soil_pH}
-                              onChange={(e) => setCropField(idx, 'soil_pH', e.target.value)}
-                              className="w-full px-2 py-2 border border-gray-300 rounded"
-                              placeholder={t('dataInput.soilpHPlaceholder')}
-                            />
+                        </div>
+
+                        {/* Weather Parameters */}
+                        <div className="col-span-2">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">Weather Data (Optional)</h5>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Temp (°C)</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={c.temperature}
+                                onChange={(e) => setCropField(idx, 'temperature', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                                placeholder="e.g., 25.5"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Humidity (%)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={c.humidity}
+                                onChange={(e) => setCropField(idx, 'humidity', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                                placeholder="e.g., 65"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Rainfall (mm)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={c.rainfall}
+                                onChange={(e) => setCropField(idx, 'rainfall', e.target.value)}
+                                className="w-full px-2 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-leaf-green focus:border-transparent"
+                                placeholder="e.g., 120.5"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1301,6 +1488,17 @@ const DataInput: React.FC = () => {
                   >
                     <Save /> {editingIndex !== null ? t('dataInput.updateFieldsContinue') : t('dataInput.saveFieldsContinue')}
                   </button>
+                  
+                  {/* New Predict Yield Button */}
+                  <button
+                    type="button"
+                    onClick={() => handlePredictYield()}
+                    disabled={isSubmitting || !form.crops.length || !form.crops[0].crop_type}
+                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <TrendingUp className="w-4 h-4" /> Predict Yield
+                  </button>
+                  
                   {!showNewUserMessage && (
                     <button
                       type="button"

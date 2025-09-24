@@ -3,12 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiHome, FiDatabase, FiTrendingUp, FiLogOut, FiMenu, FiX, FiGlobe, FiUser } from 'react-icons/fi';
-import { FaDollarSign, FaUsers } from 'react-icons/fa';
+import { FaDollarSign } from 'react-icons/fa';
+import { BarChart3, TrendingUp } from 'lucide-react';
 import { GiWheat } from 'react-icons/gi';
 import NotificationIcon from './NotificationIcon';
 import ThemeToggle from './ThemeToggle';
 import { getNotifications } from '../utils/notificationUtils';
-
 const Navigation: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -53,9 +53,10 @@ const Navigation: React.FC = () => {
   const navItems: { path: string; label: string; icon: React.ComponentType<any>; disabled?: boolean }[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: FiHome, disabled: isNewUser },
     { path: '/data-input', label: t('nav.dataInput'), icon: FiDatabase, disabled: false }, // Always enabled
+    { path: '/crop-analysis', label: 'Crop Analysis', icon: BarChart3 as React.ComponentType<any>, disabled: isNewUser },
+    { path: '/yield-prediction', label: 'Yield Prediction', icon: TrendingUp as React.ComponentType<any>, disabled: isNewUser },
     { path: '/suggestions', label: t('nav.suggestions'), icon: FiTrendingUp, disabled: isNewUser },
     { path: '/market-insights', label: t('nav.market'), icon: FaDollarSign as React.ComponentType<any>, disabled: isNewUser },
-    { path: '/community', label: t('nav.community'), icon: FaUsers as React.ComponentType<any>, disabled: isNewUser },
   ];
 
   if (!isAuthenticated) {
@@ -75,44 +76,47 @@ const Navigation: React.FC = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center flex-1 justify-center max-w-4xl mx-6">
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-xl p-1 w-full">
             {navItems.map((item, index) => {
               const Icon = item.icon;
               return item.disabled ? (
                 <motion.div
                   key={item.path}
-                  initial={{ opacity: 0, y: -5 }} // Reduced from y: -10
+                  initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.2 }} // Reduced delay and duration
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                  transition={{ delay: index * 0.05, duration: 0.2 }}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-gray-400 dark:text-gray-500 cursor-not-allowed text-sm font-medium"
                   title={t('navigation.completeDataInputFirst')}
                 >
-                  <Icon />
-                  <span>{item.label}</span>
+                  <Icon className="w-4 h-4" />
+                  <span className="hidden sm:inline">{item.label}</span>
                 </motion.div>
               ) : (
                 <motion.div
                   key={item.path}
-                  initial={{ opacity: 0, y: -5 }} // Reduced from y: -10
+                  initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05, duration: 0.2 }} // Reduced delay and duration
-                  whileHover={{ scale: 1.02 }} // Reduced from 1.05
-                  whileTap={{ scale: 0.98 }} // Reduced from 0.95
+                  transition={{ delay: index * 0.05, duration: 0.2 }}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className="flex-1"
                 >
                   <Link
                     to={item.path}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
+                    className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium w-full ${
                       location.pathname === item.path
                         ? 'bg-leaf-green text-white shadow-md'
-                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 hover:shadow-sm'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600 hover:shadow-sm'
                     }`}
                   >
-                    <Icon />
-                    <span>{item.label}</span>
+                    <Icon className="w-4 h-4" />
+                    <span className="hidden sm:inline">{item.label}</span>
                   </Link>
                 </motion.div>
               );
             })}
+            </div>
           </div>
 
           {/* Right side - Language & Profile */}

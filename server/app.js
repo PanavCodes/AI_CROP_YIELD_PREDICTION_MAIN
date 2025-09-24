@@ -6,15 +6,17 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
-// Import our services
-const CropDatabase = require('./database/schema');
+// Import our services (MongoDB instead of DuckDB)
+const mongoose = require('mongoose');
+const MongoAnalyticsService = require('./services/mongoAnalyticsService');
 const CSVProcessor = require('./services/csvProcessor');
+const yieldPredictionService = require('./services/yieldPredictionService');
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 3001;
 
 // Initialize services
-let db;
+let analyticsDb;
 const csvProcessor = new CSVProcessor();
 
 // Ensure required directories exist
@@ -28,32 +30,30 @@ const ensureDirectories = () => {
   });
 };
 
-// Initialize database
+// Initialize MongoDB connection and analytics service
 const initializeDatabase = async () => {
   try {
-    console.log('🔄 Initializing database...');
-    db = new CropDatabase();
-    // Wait for schema initialization to complete
-    await new Promise((resolve, reject) => {
-      setTimeout(() => {
-        try {
-          // Test database connection
-          db.run('SELECT 1 as test')
-            .then(() => {
-              console.log('🗄️ Database initialized and tested successfully');
-              resolve();
-            })
-            .catch(reject);
-        } catch (err) {
-          reject(err);
-        }
-      }, 100); // Small delay to allow schema initialization
+    console.log('🔄 Initializing MongoDB connection...');
+    
+    // Connect to MongoDB
+    const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/crop-prediction-app';
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
     });
+    console.log('🍃 MongoDB connected successfully');
+
+    // Initialize analytics service
+    analyticsDb = new MongoAnalyticsService();
+    await analyticsDb.initialize();
+    console.log('✅ MongoDB analytics service initialized');
+
   } catch (error) {
     console.error('❌ Database initialization failed:', error);
     console.error('❌ Error details:', error.message);
-    console.error('❌ Stack trace:', error.stack);
-    throw error; // Don't exit immediately, let the caller handle it
+    
+    // Don't exit, but warn about limited functionality
+    console.warn('⚠️ Continuing with limited database functionality');
   }
 };
 
@@ -305,6 +305,63 @@ app.get('/api/crop-data/statistics', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to retrieve statistics' 
+    });
+  }
+});
+
+// =============================================================================
+// YIELD PREDICTION ENDPOINT
+// =============================================================================
+
+// POST /api/yield-prediction - Predict crop yield using ML model
+app.post('/api/yield-prediction', async (req, res) => {
+  try {
+    console.log('🔮 Yield prediction request received:', req.body);
+    
+    const {
+      crop,
+      state,
+      year,
+      rainfall,
+      temperature,
+      pesticides_tonnes,
+      areaHectare
+    } = req.body;
+
+    // Basic validation
+    if (!crop || !state || !year || rainfall === undefined || temperature === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: crop, state, year, rainfall, temperature'
+      });
+    }
+
+    // Get user email from session/auth (for now, use a default or from headers)
+    const userEmail = req.headers['user-email'] || 'default@example.com';
+    
+    // Call yield prediction service
+    const prediction = await yieldPredictionService.predictYield(userEmail, {
+      crop,
+      state,
+      year: parseInt(year),
+      rainfall: parseFloat(rainfall),
+      temperature: parseFloat(temperature),
+      pesticides_tonnes: parseFloat(pesticides_tonnes) || 0.0,
+      areaHectare: parseFloat(areaHectare) || 1.0
+    });
+
+    res.json({
+      success: true,
+      data: prediction,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Yield prediction endpoint error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Yield prediction failed',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

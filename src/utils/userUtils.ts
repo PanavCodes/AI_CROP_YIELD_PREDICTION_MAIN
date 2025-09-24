@@ -162,7 +162,6 @@ export const saveUserSession = (user: User): void => {
   localStorage.setItem('currentUser', JSON.stringify(user));
   localStorage.setItem('userEmail', user.email);
 };
-
 export const getCurrentUser = (): User | null => {
   const userStr = localStorage.getItem('currentUser');
   return userStr ? JSON.parse(userStr) : null;
@@ -173,6 +172,47 @@ export const clearUserSession = (): void => {
   localStorage.removeItem('currentUser');
   localStorage.removeItem('userEmail');
   localStorage.removeItem('userData');
+  localStorage.removeItem('fieldProfiles');
+  localStorage.removeItem('weatherCache');
+  localStorage.removeItem('locationCache');
+};
+
+// Enhanced logout function for automatic sign-out
+export const performAutoLogout = (): void => {
+  try {
+    // Clear all user-related data
+    clearUserSession();
+    
+    // Clear any additional localStorage items that might exist
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('user') || 
+        key.startsWith('auth') || 
+        key.startsWith('session') ||
+        key.includes('token') ||
+        key.includes('login')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    // Remove identified keys
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Clear sessionStorage as well
+    sessionStorage.clear();
+    
+    console.log('User automatically signed out - all session data cleared');
+  } catch (error) {
+    console.error('Error during auto logout:', error);
+    // Fallback: clear everything
+    localStorage.clear();
+    sessionStorage.clear();
+  }
 };
 
 export const isAuthenticated = (): boolean => {

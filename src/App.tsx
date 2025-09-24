@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import './utils/i18n';
-import { isAuthenticated, getCurrentUser, needsTutorial } from './utils/userUtils';
+import { isAuthenticated, getCurrentUser, needsTutorial, performAutoLogout } from './utils/userUtils';
 import { ThemeProvider } from './contexts/ThemeContext';
 
 // Components
@@ -12,6 +12,7 @@ import OnboardingFlow from './components/OnboardingFlow';
 import RouteTransition from './components/RouteTransition';
 
 // Pages
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
@@ -19,9 +20,140 @@ import DataInput from './pages/DataInput';
 import Suggestions from './pages/Suggestions';
 import ProfileSettings from './pages/profile-settings';
 import MarketInsights from './pages/MarketInsights';
-import Community from './pages/Community';
+import CropAnalysis from './pages/CropAnalysis';
+import YieldPrediction from './pages/YieldPrediction';
 
 function App() {
+  // Enhanced automatic sign-out when browser/tab is closed or localhost stops
+  useEffect(() => {
+    // Set a session flag to detect server restarts
+    const sessionId = sessionStorage.getItem('devSessionId');
+    const currentSessionId = Date.now().toString();
+    
+    if (!sessionId) {
+      // First time or after server restart
+      sessionStorage.setItem('devSessionId', currentSessionId);
+    } else if (sessionId !== currentSessionId) {
+      // Different session detected, likely server restart
+      console.log('Development server restart detected, clearing session...');
+      performAutoLogout();
+      sessionStorage.setItem('devSessionId', currentSessionId);
+    }
+    let visibilityTimeout: NodeJS.Timeout | null = null;
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+    
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // Clear user session when browser/tab is closed
+      performAutoLogout();
+      // Don't prevent closing, just logout silently
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Start a timer when tab becomes hidden
+        visibilityTimeout = setTimeout(() => {
+          if (document.hidden && isAuthenticated()) {
+            console.log('Tab hidden for extended period, signing out...');
+            performAutoLogout();
+            // Force reload to reflect logout state
+            window.location.reload();
+          }
+        }, 300000); // 5 minutes of inactivity
+      } else {
+        // Clear timeout when tab becomes visible again
+        if (visibilityTimeout) {
+          clearTimeout(visibilityTimeout);
+          visibilityTimeout = null;
+        }
+      }
+    };
+
+    const handlePageHide = () => {
+      // Handle when page is being unloaded (covers more cases than beforeunload)
+      performAutoLogout();
+    };
+
+    const handleUnload = () => {
+      // Final cleanup when page is unloaded
+      performAutoLogout();
+    };
+
+    // Check if localhost server is still running (optional heartbeat)
+    const checkServerConnection = () => {
+      if (!isAuthenticated()) return;
+      
+      fetch(window.location.origin + '/favicon.ico', { 
+        method: 'HEAD',
+        cache: 'no-store'
+      })
+      .catch(() => {
+        // If localhost is not reachable, sign out
+        console.log('Localhost server not reachable, signing out...');
+        performAutoLogout();
+        window.location.reload();
+      });
+    };
+
+    // Additional event handlers for edge cases
+    const handleFocus = () => {
+      // When window regains focus, check if we're still authenticated
+      // and if the server is still running
+      if (isAuthenticated()) {
+        checkServerConnection();
+      }
+    };
+    
+    const handleOnline = () => {
+      // When connection is restored, check server
+      if (isAuthenticated()) {
+        checkServerConnection();
+      }
+    };
+    
+    const handleOffline = () => {
+      // When going offline, sign out after a delay
+      setTimeout(() => {
+        if (!navigator.onLine && isAuthenticated()) {
+          console.log('Device offline, signing out...');
+          performAutoLogout();
+          window.location.reload();
+        }
+      }, 10000); // 10 seconds grace period
+    };
+
+    // Set up heartbeat to check server connection every 30 seconds
+    if (isAuthenticated()) {
+      heartbeatInterval = setInterval(checkServerConnection, 30000);
+    }
+
+    // Add all event listeners for comprehensive coverage
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('unload', handleUnload);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup all event listeners and timers
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('unload', handleUnload);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      if (visibilityTimeout) {
+        clearTimeout(visibilityTimeout);
+      }
+      
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+    };
+  }, []);
 
   const PrivateRoute = ({ children }: { children: React.ReactElement }) => {
     const authenticated = isAuthenticated();
@@ -47,7 +179,12 @@ function App() {
 
   const AppLayout = ({ children }: { children: React.ReactNode }) => {
     const location = useLocation();
-    const showNavigation = location.pathname !== '/login' && location.pathname !== '/signup' && isAuthenticated();
+    // Don't show navigation on landing page, login, or signup
+    const showNavigation = location.pathname !== '/login' && 
+                          location.pathname !== '/signup' && 
+                          location.pathname !== '/' && 
+                          location.pathname !== '/landing' && 
+                          isAuthenticated();
     
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -60,25 +197,26 @@ function App() {
     );
   };
 
-  const AuthenticatedRedirect = () => {
+  // Redirect authenticated users to dashboard, show landing for unauthenticated users
+  const DefaultRoute = () => {
+    const authenticated = isAuthenticated();
     const user = getCurrentUser();
     
-    if (!user) {
-      return <Navigate to="/login" />;
+    if (authenticated) {
+      // For new users (n@gmail.com), redirect based on their progress
+      if (user && user.email === 'n@gmail.com') {
+        if (needsTutorial(user)) {
+          return <Navigate to="/onboarding" />;
+        } else {
+          return <Navigate to="/data-input" />;
+        }
+      }
+      // For existing users, go to dashboard
+      return <Navigate to="/dashboard" />;
     }
     
-    // Check if user needs tutorial first
-    if (needsTutorial(user)) {
-      return <Navigate to="/onboarding" />;
-    }
-    
-    // Check if user needs to complete farm data input
-    if (!user.hasFarmData) {
-      return <Navigate to="/data-input" />;
-    }
-    
-    // Existing user with complete data goes to dashboard
-    return <Navigate to="/dashboard" />;
+    // Unauthenticated users see landing page
+    return <Landing />;
   };
 
   return (
@@ -86,7 +224,8 @@ function App() {
       <Router>
         <AppLayout>
           <Routes>
-          <Route path="/" element={<AuthenticatedRedirect />} />
+          <Route path="/" element={<DefaultRoute />} />
+          <Route path="/landing" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route
@@ -140,10 +279,18 @@ function App() {
             }
           />
           <Route
-            path="/community"
+            path="/crop-analysis"
             element={
               <PrivateRoute>
-                <Community />
+                <CropAnalysis />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/yield-prediction"
+            element={
+              <PrivateRoute>
+                <YieldPrediction />
               </PrivateRoute>
             }
           />

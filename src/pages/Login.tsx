@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiUser, FiLock, FiGlobe, FiX } from 'react-icons/fi';
 import { GiWheat } from 'react-icons/gi';
-import { authenticateUser, saveUserSession } from '../utils/userUtils';
+import { authenticateUser, saveUserSession, needsTutorial, isNewUser } from '../utils/userUtils';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -37,9 +37,17 @@ const Login: React.FC = () => {
       // Apply the selected language
       i18n.changeLanguage(i18n.language);
 
-      // Let the AuthenticatedRedirect component handle the routing logic
-      // This will check for tutorial, farm data, etc. in the correct order
-      navigate('/');
+      // Smart redirect based on user type and status
+      if (needsTutorial(user)) {
+        // New user who needs tutorial first
+        navigate('/onboarding');
+      } else if (isNewUser(user) || !user.hasFarmData) {
+        // New user who needs to input farm data
+        navigate('/data-input');
+      } else {
+        // Existing user with complete data goes to dashboard
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(t('auth.loginFailed'));
     } finally {

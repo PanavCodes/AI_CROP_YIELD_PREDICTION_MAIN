@@ -39,6 +39,7 @@ import {
 } from '../utils/cropDataUtils';
 import WeatherDashboard from '../components/WeatherDashboard';
 import FieldLocationDebug from '../components/FieldLocationDebug';
+import MultiFieldYieldPrediction from '../components/MultiFieldYieldPrediction.jsx';
 import { Location } from '../types/weather';
 
 // Type for field profiles
@@ -1169,6 +1170,30 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </motion.div>
+
+        {/* Yield Predictions for All Fields */}
+        {profiles.length > 0 && (
+          <motion.div 
+            className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.2 }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <TrendingUp className="text-green-600" />
+                  AI Yield Predictions
+                </h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Machine learning predictions for all your field profiles
+                </p>
+              </div>
+            </div>
+            
+            <MultiFieldYieldPrediction profiles={profiles} />
+          </motion.div>
+        )}
 
         {/* AI Yield Modal */}
         <AIYieldModal

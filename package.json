@@ -40,9 +40,15 @@
     "preview": "vite preview",
     "test": "vitest",
     "backend": "cd server && cross-env GEMINI_API_KEY=AIzaSyBYrz7BaZEaO7Waj7_8bAyMqXVxFiRjaN0 npm start",
+    "backend:fastapi": "cd fastapi-backend && start-fastapi.bat",
+    "backend:node": "cd server && node app.js",
+    "backend:dual": "concurrently -n \"FASTAPI,NODEJS\" -c \"bgMagenta.bold,bgBlue.bold\" \"npm run backend:fastapi\" \"npm run backend:node\"",
     "frontend": "npm run dev",
-    "start": "concurrently \"npm run backend\" \"npm run frontend\"",
-    "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run backend\" \"npm run frontend\""
+    "start": "concurrently -n \"INFO,FASTAPI,NODEJS,FRONTEND\" -c \"bgYellow.bold,bgMagenta.bold,bgBlue.bold,bgGreen.bold\" \"node startup-info.js\" \"npm run backend:fastapi\" \"npm run backend:node\" \"npm run frontend\"",
+    "start:full": "concurrently -n \"FASTAPI,NODEJS,FRONTEND\" -c \"bgMagenta.bold,bgBlue.bold,bgGreen.bold\" \"npm run backend:fastapi\" \"npm run backend:node\" \"npm run frontend\"",
+    "dev:all": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run backend\" \"npm run frontend\"",
+    "test:api": "cd fastapi-backend && python test_api.py",
+    "docs:fastapi": "start http://localhost:8000/docs"
   },
   "browserslist": {
     "production": [
