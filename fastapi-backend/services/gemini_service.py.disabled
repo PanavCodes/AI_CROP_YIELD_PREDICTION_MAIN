@@ -1,0 +1,776 @@
+"""
+Gemini AI service for enhanced farming advice and crop predictions
+"""
+
+import logging
+import os
+from typing import Dict, Any, List, Optional
+import google.generativeai as genai
+from utils.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+class GeminiService:
+    """Service for Gemini AI powered agricultural insights"""
+    
+    def __init__(self):
+        self.settings = get_settings()
+        self.model = None
+        self._initialize_gemini()
+    
+    def _initialize_gemini(self):
+        """Initialize Gemini AI with API key"""
+        try:
+            api_key = self.settings.GEMINI_API_KEY or os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                logger.warning("❌ Gemini API key not found. AI features will be limited.")
+                logger.info("💡 To enable AI features, get an API key from https://aistudio.google.com/")
+                return False
+            
+            # Configure Gemini with the API key
+            genai.configure(api_key=api_key)
+            logger.info(f"🔑 Using Gemini API key: {api_key[:20]}...")
+            
+            # Try different model names to find one that works (prioritize working models)
+            model_names = [
+                'gemini-1.5-flash-8b',      # Confirmed working with your API key
+                'gemini-2.5-flash',         # Latest flash model
+                'gemini-2.0-flash',         # New generation model  
+                'gemini-1.5-flash',         # Standard flash model
+                'gemini-1.5-pro',           # Pro model (may have quota limits)
+                'gemini-pro'                # Legacy model
+            ]
+            
+            for model_name in model_names:
+                try:
+                    self.model = genai.GenerativeModel(model_name)
+                    # Test the model with a simple query
+                    test_response = self.model.generate_content("Hello")
+                    if test_response and test_response.text:
+                        logger.info(f"✅ Gemini AI service initialized successfully with model: {model_name}")
+                        return True
+                except Exception as model_error:
+                    logger.warning(f"⚠️ Model {model_name} not available: {str(model_error)}")
+                    continue
+            
+            # If no models worked
+            logger.error("❌ No Gemini models are available with current API key")
+            logger.info("💡 Please check your API key and billing status at https://aistudio.google.com/")
+            return False
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "404" in error_msg or "not found" in error_msg.lower():
+                logger.error("❌ API key appears to be invalid or expired")
+                logger.info("💡 Please generate a new API key at https://aistudio.google.com/")
+            elif "403" in error_msg or "permission" in error_msg.lower():
+                logger.error("❌ API key doesn't have permission to access Gemini models")
+                logger.info("💡 Check your Google Cloud project and billing settings")
+            else:
+                logger.error(f"❌ Failed to initialize Gemini AI: {error_msg}")
+            return False
+    
+    def is_available(self) -> bool:
+        """Check if Gemini AI service is available"""
+        return self.model is not None
+    
+    def _is_agriculture_related(self, query: str) -> bool:
+        """Check if the query is related to agriculture"""
+        agriculture_keywords = [
+            # Crops and plants
+            'crop', 'crops', 'plant', 'plants', 'farming', 'farm', 'agriculture', 'agricultural',
+            'seed', 'seeds', 'harvest', 'yield', 'cultivation', 'cultivate', 'grow', 'growing',
+            
+            # Specific crops
+            'rice', 'wheat', 'corn', 'maize', 'tomato', 'potato', 'onion', 'sugarcane', 'cotton',
+            'soybean', 'pulses', 'vegetables', 'fruits', 'cereals', 'millets', 'barley', 'chickpea',
+            
+            # Farming practices
+            'irrigation', 'fertilizer', 'pesticide', 'herbicide', 'soil', 'manure', 'compost',
+            'organic farming', 'greenhouse', 'nursery', 'transplant', 'sowing', 'planting', 'weeding',
+            
+            # Farm management
+            'pest', 'pests', 'disease', 'diseases', 'insect', 'insects', 'fungus', 'bacterial',
+            'virus', 'blight', 'rot', 'wilt', 'aphid', 'caterpillar', 'drought', 'flood',
+            
+            # Agricultural specific terms (more specific to avoid false positives)
+            'field', 'fields', 'farmland', 'hectare', 'acre', 'kharif', 'rabi', 'zaid',
+            'crop season', 'sowing season', 'harvest season', 'agricultural season',
+            'crop price', 'market price', 'mandi', 'agricultural market',
+            
+            # Indian farming specific
+            'farmer', 'farming', 'krishi', 'kisan', 'agriculture officer', 'extension', 'subsidy',
+            'government scheme', 'rural', 'village', 'cooperative', 'fpo', 'self help group',
+            'kissan', 'agricultural extension', 'farm equipment', 'tractor', 'plough'
+        ]
+        
+        # Exclude general terms that might cause false positives
+        excluded_patterns = [
+            'weather today', 'current weather', 'today weather', 'weather forecast',
+            'temperature today', 'what is the weather'
+        ]
+        
+        query_lower = query.lower().strip()
+        
+        # Check if query contains excluded patterns (general weather queries)
+        if any(excluded in query_lower for excluded in excluded_patterns):
+            return False
+        
+        # Check for agriculture keywords
+        return any(keyword in query_lower for keyword in agriculture_keywords)
+    
+    async def chat_response(self, query: str, user_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """General chatbot response - focused on agriculture only"""
+        try:
+            # First check if the query is agriculture-related
+            if not self._is_agriculture_related(query):
+                return {
+                    "success": False,
+                    "response": """🌾 **Agriculture-Focused Assistant**
+                    
+I'm specialized in helping farmers and agriculture enthusiasts! I can assist you with:
+                    
+🌱 **Crop Management**: Planting, growing, and harvesting advice
+🦠 **Disease & Pest Control**: Identification and treatment solutions  
+💧 **Irrigation & Water Management**: Efficient watering techniques
+🌿 **Soil Health**: Testing, fertilization, and improvement methods
+📈 **Market Information**: Crop prices and selling strategies
+🌦️ **Weather & Seasonal Planning**: Best practices for different seasons
+🚜 **Farm Equipment**: Tools and machinery recommendations
+💰 **Government Schemes**: Subsidies and support programs for farmers
+                    
+Please ask me anything related to farming, crops, or agriculture, and I'll be happy to help! 🧑‍🌾""",
+                    "source": "Agriculture-Focused AI Assistant",
+                    "type": "non_agriculture_query"
+                }
+            
+            if not self.is_available():
+                return self._fallback_chat_response(query)
+            
+            # Build user context
+            context_str = ""
+            if user_context:
+                context_str = f"""
+USER CONTEXT:
+- Location: {user_context.get('location', 'Not specified')}
+- Farming Experience: {user_context.get('experience', 'Not specified')}
+- Primary Crops: {user_context.get('crops', 'Not specified')}
+- Farm Size: {user_context.get('farm_size', 'Not specified')}
+- Current Season: {user_context.get('season', 'Not specified')}
+"""
+            
+            # Agriculture-focused prompt
+            prompt = f"""
+You are KrishiMitra, an expert agricultural AI assistant specifically designed to help Indian farmers and agriculture enthusiasts. You have deep knowledge of:
+
+- Indian farming practices and conditions
+- Crop cultivation techniques
+- Pest and disease management
+- Soil health and fertilization
+- Irrigation and water management
+- Market trends and pricing
+- Government agricultural schemes
+- Sustainable farming practices
+- Weather-based farming decisions
+
+{context_str}
+
+FARMER'S QUESTION: {query}
+
+IMPORTANT GUIDELINES:
+- Provide practical, actionable advice suitable for Indian farming conditions
+- Include specific recommendations with clear steps
+- Consider cost-effectiveness for small and medium farmers
+- Mention seasonal considerations when relevant
+- Include safety precautions if dealing with chemicals or equipment
+- Suggest government schemes or subsidies when applicable
+- Use simple, farmer-friendly language with emojis for better readability
+- Focus on sustainable and environmentally friendly practices
+- If unsure about specific regional practices, encourage consultation with local agricultural extension officers
+
+Format your response in clear sections and make it comprehensive yet easy to understand.
+"""
+            
+            response = self.model.generate_content(prompt)
+            
+            return {
+                "success": True,
+                "response": response.text,
+                "source": "KrishiMitra - AI Agricultural Assistant",
+                "type": "agriculture_advice",
+                "confidence": "high"
+            }
+            
+        except Exception as e:
+            logger.error(f"Gemini chat response error: {str(e)}")
+            return self._fallback_chat_response(query)
+    
+    async def get_crop_advice(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Get comprehensive crop advice using Gemini AI"""
+        try:
+            if not self.is_available():
+                return self._fallback_response(query)
+            
+            # Build context for better responses
+            context_str = ""
+            if context:
+                context_str = f"""
+FARMER CONTEXT:
+- Location: {context.get('location', 'India')}
+- Primary crops: {context.get('crops', 'General farming')}
+- Farm size: {context.get('farm_size', 'Not specified')}
+- Experience: {context.get('experience', 'Not specified')}
+- Current season: {context.get('season', 'Current season')}
+"""
+            
+            # Enhanced agricultural prompt
+            prompt = f"""
+You are an expert agricultural AI assistant with deep knowledge of Indian farming practices. 
+Provide practical, actionable advice to farmers.
+
+{context_str}
+
+FARMER'S QUESTION: {query}
+
+Please provide a comprehensive response that includes:
+1. Direct answer to their question
+2. Practical recommendations with specific steps
+3. Seasonal considerations
+4. Cost-effective solutions
+5. Safety precautions if applicable
+6. Relevant government schemes or subsidies
+7. Best practices for sustainable farming
+
+Format your response in clear sections with emojis for better readability.
+Focus on Indian agricultural conditions and practices.
+"""
+            
+            response = self.model.generate_content(prompt)
+            
+            return {
+                "success": True,
+                "advice": response.text,
+                "source": "Gemini AI - Advanced Agricultural Assistant",
+                "confidence": "high"
+            }
+            
+        except Exception as e:
+            logger.error(f"Gemini crop advice error: {str(e)}")
+            return self._fallback_response(query)
+    
+    async def analyze_crop_data(self, crop_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze crop data and provide AI insights"""
+        try:
+            if not self.is_available():
+                return self._fallback_analysis(crop_data)
+            
+            prompt = f"""
+Analyze this crop data and provide expert insights:
+
+CROP DATA:
+- Crop Type: {crop_data.get('crop_type', 'Not specified')}
+- Location: {crop_data.get('location', 'Not specified')}
+- Area: {crop_data.get('area', 'Not specified')} hectares
+- Current Growth Stage: {crop_data.get('growth_stage', 'Not specified')}
+- Soil Type: {crop_data.get('soil_type', 'Not specified')}
+- Irrigation: {crop_data.get('irrigation_type', 'Not specified')}
+- Weather Conditions: {crop_data.get('weather', 'Not specified')}
+- Issues/Concerns: {crop_data.get('issues', 'None mentioned')}
+
+Please provide:
+1. 🌾 CROP HEALTH ASSESSMENT
+2. 🌱 GROWTH OPTIMIZATION RECOMMENDATIONS  
+3. 🛡️ POTENTIAL RISKS & MITIGATION
+4. 💧 IRRIGATION RECOMMENDATIONS
+5. 🌿 NUTRIENT MANAGEMENT ADVICE
+6. 📅 TIMELINE FOR NEXT ACTIONS
+7. 💰 COST-BENEFIT ANALYSIS
+
+Focus on practical, implementable solutions for Indian farming conditions.
+"""
+            
+            response = self.model.generate_content(prompt)
+            
+            return {
+                "success": True,
+                "analysis": response.text,
+                "recommendations": self._extract_recommendations(response.text),
+                "source": "Gemini AI Crop Analysis"
+            }
+            
+        except Exception as e:
+            logger.error(f"Gemini crop analysis error: {str(e)}")
+            return self._fallback_analysis(crop_data)
+    
+    async def predict_market_trends(self, crop: str, location: str = None) -> Dict[str, Any]:
+        """Predict market trends for specific crops"""
+        try:
+            if not self.is_available():
+                return self._fallback_market_analysis(crop, location)
+            
+            prompt = f"""
+Provide market trend analysis and predictions for:
+
+CROP: {crop}
+LOCATION: {location or 'India (General)'}
+
+Please analyze and provide:
+
+1. 📈 CURRENT MARKET TRENDS
+   - Price movements in last 3-6 months
+   - Demand-supply dynamics
+   - Seasonal price patterns
+
+2. 🔮 PRICE PREDICTIONS
+   - Expected price range for next 3-6 months
+   - Best time to sell for maximum profit
+   - Market factors affecting prices
+
+3. 🌍 MARKET FACTORS
+   - Government policies impact
+   - Export-import scenarios  
+   - Weather impact on prices
+   - Festival/seasonal demand
+
+4. 💡 STRATEGIC RECOMMENDATIONS
+   - When to sell for best prices
+   - Storage strategies
+   - Value addition opportunities
+   - Alternative market channels
+
+5. ⚠️ RISK FACTORS
+   - Price volatility risks
+   - Quality degradation concerns
+   - Market access challenges
+
+Base your analysis on Indian agricultural market patterns and include specific actionable advice for farmers.
+"""
+            
+            response = self.model.generate_content(prompt)
+            
+            return {
+                "success": True,
+                "market_analysis": response.text,
+                "crop": crop,
+                "location": location,
+                "source": "Gemini AI Market Intelligence"
+            }
+            
+        except Exception as e:
+            logger.error(f"Gemini market trends error: {str(e)}")
+            return self._fallback_market_analysis(crop, location)
+    
+    async def disease_identification(self, symptoms: str, crop: str = None, image_analysis: str = None) -> Dict[str, Any]:
+        """Identify crop diseases based on symptoms"""
+        try:
+            if not self.is_available():
+                return self._fallback_disease_identification(symptoms, crop)
+            
+            prompt = f"""
+Act as an expert plant pathologist. Analyze these crop disease symptoms:
+
+CROP: {crop or 'Not specified'}
+SYMPTOMS: {symptoms}
+{f"IMAGE ANALYSIS: {image_analysis}" if image_analysis else ""}
+
+Provide comprehensive disease diagnosis:
+
+1. 🔍 LIKELY DISEASES
+   - Most probable diseases based on symptoms
+   - Disease severity assessment
+   - Stage of disease progression
+
+2. 🧬 DISEASE DETAILS
+   - Causative agents (fungal/bacterial/viral)
+   - How the disease spreads
+   - Environmental conditions favoring disease
+
+3. 🛡️ TREATMENT RECOMMENDATIONS
+   - Immediate action steps
+   - Organic/biological control methods
+   - Chemical treatment options (with safety precautions)
+   - Application timing and frequency
+
+4. 🚫 PREVENTION STRATEGIES
+   - Cultural practices to prevent recurrence
+   - Resistant varieties recommendations
+   - Field sanitation measures
+   - Preventive spraying schedule
+
+5. ⚠️ URGENCY LEVEL
+   - How quickly treatment is needed
+   - Potential crop loss if untreated
+   - Economic impact assessment
+
+Focus on solutions available in Indian agricultural markets with cost considerations.
+"""
+            
+            response = self.model.generate_content(prompt)
+            
+            return {
+                "success": True,
+                "diagnosis": response.text,
+                "crop": crop,
+                "urgency": self._assess_urgency(response.text),
+                "source": "Gemini AI Plant Pathology"
+            }
+            
+        except Exception as e:
+            logger.error(f"Gemini disease identification error: {str(e)}")
+            return self._fallback_disease_identification(symptoms, crop)
+    
+    def _extract_recommendations(self, text: str) -> List[str]:
+        """Extract key recommendations from AI response"""
+        try:
+            # Simple extraction of bullet points and numbered items
+            recommendations = []
+            lines = text.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith(('-', '•', '*')) or (line and line[0].isdigit() and line[1:3] == '. '):
+                    recommendations.append(line)
+            
+            return recommendations[:10]  # Limit to top 10 recommendations
+            
+        except Exception as e:
+            logger.error(f"Error extracting recommendations: {str(e)}")
+            return ["Regular monitoring and best practices recommended"]
+    
+    def _assess_urgency(self, text: str) -> str:
+        """Assess urgency level from disease diagnosis"""
+        text_lower = text.lower()
+        
+        if any(word in text_lower for word in ['urgent', 'immediate', 'critical', 'severe', 'emergency']):
+            return "high"
+        elif any(word in text_lower for word in ['moderate', 'caution', 'monitor']):
+            return "medium"
+        else:
+            return "low"
+    
+    def _fallback_response(self, query: str) -> Dict[str, Any]:
+        """Fallback response when Gemini AI is unavailable"""
+        return {
+            "success": False,
+            "advice": f"""🌾 **Agricultural Guidance Available**
+
+I'm currently unable to access advanced AI features, but here's general guidance for your farming query:
+
+**For your question about: "{query[:100]}..."**
+
+🌱 **General Recommendations:**
+- Consult your local agricultural extension officer
+- Monitor weather conditions regularly
+- Follow integrated crop management practices
+- Test soil health periodically
+- Use certified seeds and quality inputs
+
+💡 **Resources to Help:**
+- Contact nearest Krishi Vigyan Kendra (KVK)
+- Use government agriculture apps like Kisan Suvidha
+- Check India Meteorological Department for weather
+- Visit your state's agriculture department website
+
+📱 **Immediate Steps:**
+- Document your specific concerns with photos if possible
+- Prepare details about your crop, location, and current practices
+- Connect with fellow farmers in your area for shared experiences
+
+The AI service will be back online shortly for more detailed assistance!
+""",
+            "source": "Fallback Agricultural Guidance",
+            "confidence": "general"
+        }
+    
+    def _fallback_analysis(self, crop_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Fallback analysis when AI is unavailable"""
+        crop_type = crop_data.get('crop_type', 'your crop')
+        
+        return {
+            "success": False,
+            "analysis": f"""🌾 **Basic Crop Analysis for {crop_type}**
+
+**Current Status:** Analysis temporarily unavailable - providing general guidance.
+
+🌱 **Standard Care Recommendations:**
+- Monitor crop growth stages regularly
+- Ensure adequate water supply based on crop requirements  
+- Apply balanced fertilizers as per soil test recommendations
+- Scout for pests and diseases weekly
+- Maintain field hygiene and proper drainage
+
+🛡️ **Risk Management:**
+- Watch weather forecasts for adverse conditions
+- Prepare for pest outbreaks during favorable seasons
+- Ensure crop insurance coverage is active
+- Have emergency contact numbers for agricultural experts
+
+📋 **Next Actions:**
+- Schedule soil and water testing
+- Plan nutrient application schedule
+- Prepare harvest and post-harvest planning
+- Connect with agricultural extension services
+
+For detailed, personalized analysis, please try again when AI services are available.
+""",
+            "recommendations": [
+                "Regular field monitoring",
+                "Proper water management",
+                "Balanced nutrition program",
+                "Integrated pest management",
+                "Weather-based decision making"
+            ],
+            "source": "Basic Agricultural Guidelines"
+        }
+    
+    def _fallback_market_analysis(self, crop: str, location: str) -> Dict[str, Any]:
+        """Fallback market analysis when AI is unavailable"""
+        return {
+            "success": False,
+            "market_analysis": f"""📈 **Market Information for {crop}**
+
+**Current Status:** Advanced market analysis temporarily unavailable.
+
+💰 **General Market Guidance:**
+- Check daily prices on eNAM portal (https://enam.gov.in)
+- Monitor local mandi prices regularly
+- Consider seasonal price patterns for {crop}
+- Evaluate storage options for better prices
+
+📊 **Price Discovery Sources:**
+- National Sample Survey Office (NSSO) reports
+- Agricultural Marketing Division data
+- State agricultural marketing boards
+- Commodity exchanges (NCDEX, MCX)
+
+🎯 **Marketing Strategies:**
+- Grade and sort produce for better prices
+- Explore direct marketing opportunities
+- Consider Farmer Producer Organizations (FPO)
+- Evaluate contract farming opportunities
+
+📱 **Useful Apps & Portals:**
+- Kisan Suvidha app
+- AGMARKNET portal  
+- RML Farmer app
+- State-specific agriculture apps
+
+For real-time AI-powered market insights, please try again when services are restored.
+""",
+            "crop": crop,
+            "location": location,
+            "source": "Basic Market Guidance"
+        }
+    
+    def _fallback_disease_identification(self, symptoms: str, crop: str) -> Dict[str, Any]:
+        """Fallback disease identification when AI is unavailable"""
+        return {
+            "success": False,
+            "diagnosis": f"""🔍 **Disease Identification Assistance**
+
+**Symptoms Reported:** {symptoms[:200]}...
+**Crop:** {crop or 'Not specified'}
+
+⚠️ **Immediate Steps:**
+1. Take clear photos of affected plants/parts
+2. Note environmental conditions (temperature, humidity, rainfall)
+3. Document when symptoms first appeared
+4. Check if symptoms are spreading
+
+🏥 **Expert Consultation:**
+- Contact nearest Plant Protection Officer
+- Visit Krishi Vigyan Kendra for diagnosis
+- Consult agricultural university extension services
+- Use plant disease identification apps as reference
+
+🛡️ **General Precautions:**
+- Isolate affected plants if possible
+- Avoid overhead irrigation in affected areas
+- Do not compost diseased plant material
+- Sanitize tools used in affected areas
+
+📱 **Disease Identification Resources:**
+- PlantNet app for basic identification
+- Kisan Suvidha app disease section
+- Agricultural extension helplines
+- State agriculture department disease alerts
+
+For accurate AI-powered disease diagnosis, please retry when services are available.
+""",
+            "crop": crop,
+            "urgency": "medium",
+            "source": "Basic Disease Management Guidance"
+        }
+    
+    async def generate_farm_plan(self, farm_details: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate comprehensive farm planning recommendations"""
+        try:
+            if not self.is_available():
+                return self._fallback_farm_plan(farm_details)
+            
+            prompt = f"""
+Create a comprehensive farm plan based on these details:
+
+FARM DETAILS:
+- Location: {farm_details.get('location', 'Not specified')}
+- Total Area: {farm_details.get('total_area', 'Not specified')} hectares
+- Soil Type: {farm_details.get('soil_type', 'Not specified')}
+- Water Source: {farm_details.get('water_source', 'Not specified')}
+- Current Crops: {farm_details.get('current_crops', 'None specified')}
+- Budget Range: {farm_details.get('budget', 'Not specified')}
+- Farmer Experience: {farm_details.get('experience', 'Not specified')}
+- Goals: {farm_details.get('goals', 'General farming')}
+
+Create a detailed farm plan with:
+
+1. 🌾 CROP SELECTION STRATEGY
+   - Recommended crops for the region and conditions
+   - Crop rotation schedule
+   - High-value crop opportunities
+   - Market demand considerations
+
+2. 📅 SEASONAL PLANNING
+   - Kharif season crops and timeline
+   - Rabi season crops and timeline
+   - Summer/Zaid season opportunities
+   - Year-round planning calendar
+
+3. 💧 WATER MANAGEMENT PLAN
+   - Irrigation system recommendations
+   - Water conservation strategies
+   - Rainwater harvesting options
+   - Efficient water usage techniques
+
+4. 🌱 SOIL HEALTH MANAGEMENT
+   - Soil testing schedule
+   - Organic matter enhancement
+   - Nutrient management program
+   - Soil conservation practices
+
+5. 💰 FINANCIAL PLANNING
+   - Investment priorities
+   - Cost-benefit analysis for different crops
+   - Funding sources and schemes
+   - Insurance recommendations
+
+6. 🔬 TECHNOLOGY ADOPTION
+   - Precision agriculture tools
+   - Mobile apps for farm management
+   - Weather monitoring systems
+   - Market price tracking tools
+
+Provide specific, actionable recommendations suitable for Indian farming conditions.
+"""
+            
+            response = self.model.generate_content(prompt)
+            
+            return {
+                "success": True,
+                "farm_plan": response.text,
+                "farm_details": farm_details,
+                "plan_duration": "12 months",
+                "source": "Gemini AI Farm Planning"
+            }
+            
+        except Exception as e:
+            logger.error(f"Gemini farm planning error: {str(e)}")
+            return self._fallback_farm_plan(farm_details)
+    
+    def _fallback_farm_plan(self, farm_details: Dict[str, Any]) -> Dict[str, Any]:
+        """Fallback farm planning when AI is unavailable"""
+        area = farm_details.get('total_area', 'your farm')
+        location = farm_details.get('location', 'your location')
+        
+        return {
+            "success": False,
+            "farm_plan": f"""🌾 **Basic Farm Planning Guide**
+
+**For:** {area} hectares in {location}
+
+📋 **Essential Planning Steps:**
+
+1. **Crop Selection:**
+   - Choose crops suitable for your climate zone
+   - Consider local market demand
+   - Plan for crop rotation to maintain soil health
+   - Allocate area based on water availability
+
+2. **Seasonal Planning:**
+   - Kharif (June-October): Monsoon-dependent crops
+   - Rabi (November-April): Winter crops
+   - Summer (May-June): High-value, less water-intensive crops
+
+3. **Infrastructure Development:**
+   - Plan irrigation system based on water source
+   - Storage facilities for inputs and produce
+   - Farm roads and drainage systems
+   - Fencing and security measures
+
+4. **Financial Planning:**
+   - Prepare annual budget for inputs
+   - Explore government subsidies and schemes
+   - Consider crop insurance options
+   - Plan for emergency funds
+
+5. **Technology Adoption:**
+   - Use weather apps for informed decisions
+   - Adopt soil testing for precise fertilization
+   - Consider mechanization for efficiency
+   - Use market price apps for better selling
+
+📱 **Resources for Detailed Planning:**
+- Consult local agricultural extension officers
+- Visit nearest Krishi Vigyan Kendra
+- Use government agricultural portals
+- Connect with successful farmers in your area
+
+For personalized AI-powered farm planning, please retry when services are available.
+""",
+            "farm_details": farm_details,
+            "plan_duration": "12 months",
+            "source": "Basic Farm Planning Guidelines"
+        }
+    
+    def _fallback_chat_response(self, query: str) -> Dict[str, Any]:
+        """Fallback chat response when AI is unavailable"""
+        return {
+            "success": False,
+            "response": f"""🌾 **KrishiMitra - Agriculture Assistant**
+            
+I'm currently experiencing technical difficulties, but I'm here to help with your farming question!
+            
+**Your Question:** "{query[:100]}{'...' if len(query) > 100 else ''}"
+            
+🔧 **While I'm recovering, here are some helpful resources:**
+            
+📱 **Immediate Help:**
+- Call Kisan Call Center: 1800-180-1551
+- Use Kisan Suvidha app for basic guidance
+- Check weather updates on IMD app
+- Visit nearest Krishi Vigyan Kendra
+            
+💡 **General Agricultural Guidance:**
+- Monitor your crops daily for any changes
+- Follow integrated pest management practices
+- Maintain proper irrigation schedules
+- Keep records of all farming activities
+- Test soil health regularly
+            
+🌐 **Online Resources:**
+- eNAM portal for market prices
+- AGMARKNET for market information
+- India Meteorological Department for weather
+- Your state's agriculture department website
+            
+📞 **Expert Consultation:**
+- Contact local agricultural extension officer
+- Reach out to successful farmers in your area
+- Join farmer WhatsApp groups for community support
+- Visit agricultural universities for technical guidance
+            
+🔄 **Please try again in a few minutes for AI-powered personalized advice!**
+            
+I'll be back online shortly to provide detailed, expert guidance for your specific farming needs. 🧑‍🌾""",
+            "source": "KrishiMitra - Fallback Guidance",
+            "type": "fallback_response"
+        }

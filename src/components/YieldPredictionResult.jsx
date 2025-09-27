@@ -17,32 +17,48 @@ const YieldPredictionResult = ({ predictionData }) => {
     setError(null);
     
     try {
+      // First check if FastAPI backend is running
+      console.log('🔍 Attempting to connect to FastAPI backend...');
+      
+      // Use form data format as expected by FastAPI endpoint
       const params = new URLSearchParams({
         crop: data.crop,
         state: data.state,
-        rainfall: data.rainfall,
-        temperature: data.temperature,
-        area: data.area || 1.0,
-        pesticides: data.pesticides || 0.0,
-        year: data.year || new Date().getFullYear()
+        rainfall: data.rainfall.toString(),
+        temperature: data.temperature.toString(),
+        area: (data.area || 1.0).toString(),
+        pesticides: (data.pesticides || 0.0).toString(),
+        year: (data.year || new Date().getFullYear()).toString()
       });
 
       const response = await fetch(`http://localhost:8000/api/predict/simple-yield?${params}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         }
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('✅ Prediction successful:', result);
       setPrediction(result);
     } catch (err) {
-      setError(err.message);
-      console.error('Yield prediction error:', err);
+      console.error('❌ Yield prediction error:', err);
+      
+      // Provide more helpful error messages
+      let errorMessage = err.message;
+      if (err.message.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to AI backend. Please ensure the FastAPI server is running on port 8000.';
+      } else if (err.message.includes('CORS')) {
+        errorMessage = 'Cross-origin request blocked. Please check CORS settings.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -77,6 +93,18 @@ const YieldPredictionResult = ({ predictionData }) => {
         <div className="error">
           <h3>❌ Prediction Error</h3>
           <p>Failed to get yield prediction: {error}</p>
+          {error.includes('port 8000') && (
+            <div className="error-help">
+              <h4>💡 How to fix this:</h4>
+              <ol>
+                <li>Open a terminal and navigate to your project folder</li>
+                <li>Run: <code>cd fastapi-backend</code></li>
+                <li>Start the AI backend: <code>python main.py</code> or <code>start-fastapi.bat</code></li>
+                <li>Wait for "FastAPI application started successfully" message</li>
+                <li>Click "Try Again" below</li>
+              </ol>
+            </div>
+          )}
           <button onClick={() => fetchYieldPrediction(predictionData)}>
             🔄 Try Again
           </button>

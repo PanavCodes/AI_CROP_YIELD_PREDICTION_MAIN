@@ -100,7 +100,7 @@ const upload = multer({
 // POST /api/upload/csv - Upload and process CSV file
 app.post('/api/upload/csv', upload.single('csvFile'), async (req, res) => {
   try {
-    if (!db) {
+    if (!analyticsDb) {
       return res.status(503).json({ 
         success: false, 
         error: 'Database not available. CSV upload is disabled.' 
@@ -139,12 +139,12 @@ app.post('/api/upload/csv', upload.single('csvFile'), async (req, res) => {
       INSERT INTO upload_batches (batch_id, filename, file_size, total_rows, valid_rows, invalid_rows, processing_status, upload_timestamp)
       VALUES ('${processingResult.batchId}', '${req.file.originalname.replace(/'/g, "''") }', ${req.file.size}, ${processingResult.totalRows}, ${processingResult.validRows}, ${processingResult.invalidRows}, '${processingResult.validRows > 0 ? 'completed' : 'failed'}', ${uploadTimestamp})
     `;
-    await db.run(batchQuery);
+    await analyticsDb.run(batchQuery);
 
     // Save valid records to database
     if (processingResult.processedData.length > 0) {
       console.log(`💾 Saving ${processingResult.processedData.length} records to database`);
-      await db.batchInsertCropData(processingResult.processedData);
+    await analyticsDb.batchInsertCropData(processingResult.processedData);
     }
     
     // Clean up uploaded file
@@ -184,7 +184,7 @@ app.post('/api/upload/csv', upload.single('csvFile'), async (req, res) => {
 // GET /api/crop-data - Get crop data with filtering and pagination
 app.get('/api/crop-data', async (req, res) => {
   try {
-    if (!db) {
+    if (!analyticsDb) {
       return res.status(503).json({ 
         success: false, 
         error: 'Database not available' 
@@ -206,7 +206,7 @@ app.get('/api/crop-data', async (req, res) => {
     if (district) filters.district = district;
     if (upload_batch_id) filters.upload_batch_id = upload_batch_id;
     
-    const data = await db.getCropData(filters, parseInt(limit), parseInt(offset));
+    const data = await analyticsDb.getCropData(filters, parseInt(limit), parseInt(offset));
     
     res.json({
       success: true,
@@ -256,7 +256,7 @@ app.post('/api/chat/gemini', async (req, res) => {
       }];
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
 
     console.log('📤 Sending to Gemini:', JSON.stringify({ contents }, null, 2));
     const payload = { contents };
@@ -288,14 +288,14 @@ app.post('/api/chat/gemini', async (req, res) => {
 // GET /api/crop-data/statistics - Get database statistics
 app.get('/api/crop-data/statistics', async (req, res) => {
   try {
-    if (!db) {
+    if (!analyticsDb) {
       return res.status(503).json({ 
         success: false, 
         error: 'Database not available' 
       });
     }
     
-    const stats = await db.getStatistics();
+    const stats = await analyticsDb.getStatistics();
     res.json({
       success: true,
       data: stats
@@ -513,7 +513,7 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     service: 'Field Data API',
-    database: db ? 'connected' : 'unavailable',
+    database: analyticsDb ? 'connected' : 'unavailable',
     timestamp: new Date().toISOString(),
     version: '1.0.0-hackathon'
   });
@@ -552,19 +552,19 @@ const startServer = async () => {
       console.error('❌ Database initialization failed:', dbError.message);
       console.log('🔄 Attempting to continue without database (some features may be limited)');
       // Set db to null so other parts know database is not available
-      db = null;
+      analyticsDb = null;
     }
     
     const server = app.listen(PORT, () => {
       console.log('');
       console.log('🚀 Crop Data Processing Server Started!');
       console.log(`📡 Server running on http://localhost:${PORT}`);
-      console.log(`🗄️ Database status: ${db ? '✅ Connected' : '❌ Not available'}`);
+      console.log(`🗄️ Database status: ${analyticsDb ? '✅ Connected' : '❌ Not available'}`);
       console.log('');
       console.log('📋 Available Endpoints:');
-      console.log(`   📤 Upload CSV: POST /api/upload/csv ${db ? '' : '(disabled)'}`);
-      console.log(`   📊 Get Data:   GET /api/crop-data ${db ? '' : '(disabled)'}`);
-      console.log(`   📈 Statistics: GET /api/crop-data/statistics ${db ? '' : '(disabled)'}`);
+      console.log(`   📤 Upload CSV: POST /api/upload/csv ${analyticsDb ? '' : '(disabled)'}`);
+      console.log(`   📊 Get Data:   GET /api/crop-data ${analyticsDb ? '' : '(disabled)'}`);
+      console.log(`   📈 Statistics: GET /api/crop-data/statistics ${analyticsDb ? '' : '(disabled)'}`);
       console.log(`   📍 Field Data: POST /api/fields/ingest-location`);
       console.log(`   💚 Health:     GET /api/health`);
       console.log(`   🌍 Bhuvan:     GET /api/geocode/bhuvan`);
@@ -601,8 +601,8 @@ const gracefulShutdown = (signal) => {
   console.log(`\n🛑 Received ${signal}, shutting down server gracefully...`);
   
   try {
-    if (db) {
-      db.close();
+    if (analyticsDb) {
+      analyticsDb.close();
       console.log('🗄️ Database connection closed');
     }
   } catch (error) {

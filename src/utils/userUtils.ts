@@ -92,6 +92,44 @@ export const authenticateUser = (email: string, password: string): User | null =
   return null;
 };
 
+// Demo login helper functions
+export interface DemoUser {
+  email: string;
+  name: string;
+  description: string;
+  destination: string;
+}
+
+export const demoUsers: DemoUser[] = [
+  {
+    email: 'e@gmail.com',
+    name: 'Existing Farmer',
+    description: 'Experienced user with complete profile',
+    destination: 'Dashboard'
+  },
+  {
+    email: 'n@gmail.com',
+    name: 'New Farmer',
+    description: 'First-time user needing tutorial',
+    destination: 'Tutorial & Setup'
+  },
+  {
+    email: 'demo@farm.com',
+    name: 'Legacy User',
+    description: 'Established farmer with full access',
+    destination: 'Dashboard'
+  }
+];
+
+export const performDemoLogin = (demoEmail: string): User | null => {
+  const user = mockUsers[demoEmail.toLowerCase()];
+  if (user) {
+    user.lastLogin = new Date().toISOString().split('T')[0];
+    return user;
+  }
+  return null;
+};
+
 export const registerUser = (userData: {
   name: string;
   email: string;

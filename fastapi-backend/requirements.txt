@@ -45,5 +45,5 @@ opencv-python==4.8.1.78
 torch==2.1.1
 torchvision==0.16.1
 
-# Weather & external APIs
+# AI & external APIs
 openweathermap==1.0.1

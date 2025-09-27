@@ -1,7 +1,7 @@
 // Google Maps field location picker component
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, MapPin, Loader, Info, CheckCircle, AlertCircle, Search } from 'lucide-react';
+import { X, MapPin, Loader, Info, CheckCircle, AlertCircle, Search, Navigation } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import integratedLocationService, { FieldLocationData } from '../services/integratedLocationService';
 import locationSearchService from '../services/locationSearchService';
@@ -46,6 +46,10 @@ const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [placesService, setPlacesService] = useState<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Current location state
+  const [gettingCurrentLocation, setGettingCurrentLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Load Google Maps API
   useEffect(() => {
@@ -427,6 +431,63 @@ const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
     }
   };
   
+  // Handle current location request
+  const handleUseCurrentLocation = () => {
+    setGettingCurrentLocation(true);
+    setLocationError(null);
+    
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by this browser.');
+      setGettingCurrentLocation(false);
+      return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        console.log('Current location obtained:', lat, lng);
+        
+        // Center map on current location
+        if (map) {
+          const latLng = { lat, lng };
+          map.setCenter(latLng);
+          map.setZoom(16); // Zoom in closer for current location
+          
+          // Select this location
+          await handleLocationSelect(lat, lng);
+        }
+        
+        setGettingCurrentLocation(false);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        let errorMessage = 'Unable to get your current location.';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location access denied. Please enable location permissions in your browser.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable. Please try again.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out. Please try again.';
+            break;
+        }
+        
+        setLocationError(errorMessage);
+        setGettingCurrentLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000, // 10 seconds timeout
+        maximumAge: 300000 // 5 minutes cache
+      }
+    );
+  };
+  
   // Focus search input when modal opens
   useEffect(() => {
     if (isOpen && searchInputRef.current) {
@@ -484,97 +545,127 @@ const GoogleMapPicker: React.FC<GoogleMapPickerProps> = ({
             </button>
           </div>
           
-          {/* Search Bar */}
-          <div className="relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search for agricultural areas, cities, or districts..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setShowSearchResults(true)}
-                onBlur={() => {
-                  // Delay hiding results to allow for click events
-                  setTimeout(() => setShowSearchResults(false), 200);
-                }}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
-              />
-              {isSearching && (
-                <Loader className="absolute right-3 top-1/2 transform -translate-y-1/2 animate-spin text-gray-400" size={16} />
-              )}
+          {/* Search Bar and Current Location Button */}
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search for agricultural areas, cities, or districts..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setShowSearchResults(true)}
+                  onBlur={() => {
+                    // Delay hiding results to allow for click events
+                    setTimeout(() => setShowSearchResults(false), 200);
+                  }}
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
+                />
+                {isSearching && (
+                  <Loader className="absolute right-3 top-1/2 transform -translate-y-1/2 animate-spin text-gray-400" size={16} />
+                )}
+              </div>
             </div>
             
-            {/* Search Results Dropdown */}
-            {showSearchResults && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
-                {searchResults.length > 0 ? (
-                  <div className="py-2">
-                    {searchResults.map((location, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSearchResultSelect(location)}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                      >
-                        <div className="flex items-start gap-3">
-                          <MapPin className="text-green-500 mt-1" size={16} />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-800">
-                              {location.name}
-                            </div>
-                            {location.district && (
-                              <div className="text-sm text-gray-600">
-                                {location.district}
-                                {location.state && `, ${location.state}`}
-                              </div>
-                            )}
-                            <div className="text-xs text-gray-500 mt-1">
-                              📍 {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : searchQuery.length >= 3 && !isSearching ? (
-                  <div className="p-4 text-center text-gray-500">
-                    <Search className="mx-auto mb-2 text-gray-300" size={24} />
-                    <div>No locations found</div>
-                    <div className="text-sm">Try a different search term</div>
-                  </div>
-                ) : searchQuery.length === 0 ? (
-                  <div className="py-2">
-                    <div className="px-4 py-2 text-xs font-medium text-gray-500 bg-gray-50">
-                      🌾 Popular Agricultural Areas
-                    </div>
-                    {locationSearchService.getPopularLocations().slice(0, 6).map((searchResult, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSearchResultSelect(searchResult.location)}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
-                      >
-                        <div className="flex items-start gap-3">
-                          <MapPin className="text-green-500 mt-1" size={16} />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-800">
-                              {searchResult.location.name}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {searchResult.location.district}, {searchResult.location.state}
-                            </div>
-                            <div className="text-xs text-green-600 mt-1">
-                              {searchResult.description}
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            )}
+            {/* Use Current Location Button */}
+            <button
+              onClick={handleUseCurrentLocation}
+              disabled={gettingCurrentLocation || !map}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap"
+              title="Use your current location as field location"
+            >
+              {gettingCurrentLocation ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span className="hidden sm:inline">Getting...</span>
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-4 h-4" />
+                  <span className="hidden sm:inline">My Location</span>
+                </>
+              )}
+            </button>
           </div>
+          
+          {/* Location Error Message */}
+          {locationError && (
+            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {locationError}
+            </div>
+          )}
+            
+          {/* Search Results Dropdown */}
+          {showSearchResults && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto" style={{left: 0, right: 'auto', width: '100%'}}>
+              {searchResults.length > 0 ? (
+                <div className="py-2">
+                  {searchResults.map((location, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSearchResultSelect(location)}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="flex items-start gap-3">
+                        <MapPin className="text-green-500 mt-1" size={16} />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">
+                            {location.name}
+                          </div>
+                          {location.district && (
+                            <div className="text-sm text-gray-600">
+                              {location.district}
+                              {location.state && `, ${location.state}`}
+                            </div>
+                          )}
+                          <div className="text-xs text-gray-500 mt-1">
+                            📍 {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : searchQuery.length >= 3 && !isSearching ? (
+                <div className="p-4 text-center text-gray-500">
+                  <Search className="mx-auto mb-2 text-gray-300" size={24} />
+                  <div>No locations found</div>
+                  <div className="text-sm">Try a different search term</div>
+                </div>
+              ) : searchQuery.length === 0 ? (
+                <div className="py-2">
+                  <div className="px-4 py-2 text-xs font-medium text-gray-500 bg-gray-50">
+                    🌾 Popular Agricultural Areas
+                  </div>
+                  {locationSearchService.getPopularLocations().slice(0, 6).map((searchResult, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSearchResultSelect(searchResult.location)}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="flex items-start gap-3">
+                        <MapPin className="text-green-500 mt-1" size={16} />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800">
+                            {searchResult.location.name}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {searchResult.location.district}, {searchResult.location.state}
+                          </div>
+                          <div className="text-xs text-green-600 mt-1">
+                            {searchResult.description}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {/* Map Container */}

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FiUser, FiLock, FiGlobe, FiX } from 'react-icons/fi';
+import { FiUser, FiLock, FiGlobe, FiX, FiChevronRight } from 'react-icons/fi';
+import { ChevronRight } from 'lucide-react';
 import { GiWheat } from 'react-icons/gi';
-import { authenticateUser, saveUserSession, needsTutorial, isNewUser } from '../utils/userUtils';
+import { authenticateUser, saveUserSession, needsTutorial, isNewUser, performDemoLogin, demoUsers, DemoUser } from '../utils/userUtils';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -55,6 +56,43 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleDemoLogin = async (demoUser: DemoUser) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const user = performDemoLogin(demoUser.email);
+      
+      if (!user) {
+        setError('Demo user not found');
+        setLoading(false);
+        return;
+      }
+
+      // Save user session
+      saveUserSession(user);
+      
+      // Save the currently selected language as the user's default language
+      localStorage.setItem('language', i18n.language);
+      
+      // Apply the selected language
+      i18n.changeLanguage(i18n.language);
+
+      // Smart redirect based on user type and status
+      if (needsTutorial(user)) {
+        navigate('/onboarding');
+      } else if (isNewUser(user) || !user.hasFarmData) {
+        navigate('/data-input');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      setError('Demo login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
     localStorage.setItem('language', lng);
@@ -68,9 +106,9 @@ const Login: React.FC = () => {
             <GiWheat className="text-6xl text-leaf-green" />
           </div>
           <h2 className="text-3xl font-bold text-soil-dark dark:text-white mb-2">
-            {t('welcome')}
+            Sign In
           </h2>
-          <p className="text-gray-600 dark:text-gray-300">{t('login')}</p>
+          <p className="text-gray-600 dark:text-gray-300">Welcome back! Sign in to your account</p>
         </div>
 
         <div className="flex justify-center gap-2 mb-6">
@@ -105,19 +143,43 @@ const Login: React.FC = () => {
           </div>
         )}
 
-        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700 mb-2"><strong>{t('auth.demoCredentials')}</strong></p>
-          <p className="text-xs text-blue-600">📧 {t('auth.existingUser')} <strong>e@gmail.com</strong> {t('auth.goesToDashboard')}</p>
-          <p className="text-xs text-blue-600">📧 {t('auth.newUser')} <strong>n@gmail.com</strong> {t('auth.tutorialAndDataInput')}</p>
-          <p className="text-xs text-blue-600">📧 {t('auth.legacyUser')} demo@farm.com {t('auth.alsoGoesToDashboard')}</p>
-          <p className="text-xs text-blue-600">🔐 {t('auth.anyPassword')}</p>
-          <p className="text-xs text-green-600 mt-1">✨ <strong>{t('auth.tryNewUser')}</strong></p>
+        <div className="mb-6">
+          <div className="mb-3">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3 text-center">Try Demo Login</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 text-center mb-4">Click any demo user to instantly sign in and explore the platform</p>
+          </div>
+          <div className="grid gap-3">
+            {demoUsers.map((demoUser, index) => (
+              <button
+                key={index}
+                onClick={() => handleDemoLogin(demoUser)}
+                disabled={loading}
+                className="w-full p-3 border-2 border-green-200 rounded-lg hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-gray-800 dark:text-white group-hover:text-green-700 dark:group-hover:text-green-400">
+                      {demoUser.name}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">{demoUser.description}</p>
+                    <p className="text-xs text-green-600 dark:text-green-400">→ {demoUser.destination}</p>
+                  </div>
+                  <div className="text-green-600 group-hover:text-green-700">
+                    <ChevronRight className="w-5 h-5" />
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          <div className="mt-4 text-center">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Or sign in with your credentials below</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('auth.email')}
+              Email Address
             </label>
             <div className="relative">
               <FiUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -126,7 +188,7 @@ const Login: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder={t('auth.emailPlaceholder')}
+                placeholder="Enter your email"
                 required
               />
             </div>
@@ -134,7 +196,7 @@ const Login: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              {t('auth.password')}
+              Password
             </label>
             <div className="relative">
               <FiLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -143,7 +205,7 @@ const Login: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder={t('auth.passwordPlaceholder')}
+                placeholder="Enter your password"
                 required
               />
             </div>
@@ -171,14 +233,14 @@ const Login: React.FC = () => {
             disabled={loading}
             className="w-full bg-leaf-green text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {loading ? t('auth.signingIn') : t('login')}
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
-          {t('auth.noAccount')}{' '}
+        <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-300">
+          Don't have an account?{' '}
           <Link to="/signup" className="text-leaf-green font-semibold hover:underline">
-            {t('signup')}
+            Sign Up for Free
           </Link>
         </p>
       </div>

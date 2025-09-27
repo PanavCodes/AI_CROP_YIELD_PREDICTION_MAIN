@@ -184,9 +184,7 @@ const MultiFieldYieldPrediction = ({ profiles = [] }) => {
                           </h4>
                           <div className="text-sm text-gray-600">
                             Planted: {crop.planting_date}
-                            {crop.expected_yield && (
-                              <span> • Expected: {crop.expected_yield} quintals</span>
-                            )}
+
                           </div>
                         </div>
                       </div>

@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_HOURS: int = 24
     
     # API Keys
-    GEMINI_API_KEY: Optional[str] = None
     WEATHER_API_KEY: Optional[str] = None
     HF_TOKEN: Optional[str] = None  # Hugging Face token
     

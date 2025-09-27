@@ -173,7 +173,7 @@ const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
 
   if (!weatherData) return null;
 
-  const { current, forecast, location: weatherLocation, alerts } = weatherData;
+  const { current, forecast, location: weatherLocation } = weatherData;
 
   return (
     <div className="space-y-6">
@@ -280,47 +280,10 @@ const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
         {lastUpdated && (
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500 mt-4">
             <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
-            {weatherData.alerts?.some(alert => alert.id.includes('google')) && (
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
-                🌍 Google Enhanced
-              </span>
-            )}
           </div>
         )}
       </motion.div>
 
-      {/* Weather Alerts */}
-      {alerts && alerts.length > 0 && (
-        <motion.div
-          className="bg-red-50 rounded-2xl shadow-lg p-6 border border-red-200"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="text-red-600" size={20} />
-              <h3 className="text-lg font-bold text-red-800">Weather Alerts</h3>
-            </div>
-            {alerts.some(alert => alert.id.includes('google')) && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-blue-100 rounded-full">
-                <span className="text-xs text-blue-700 font-medium">🌍 Google Enhanced</span>
-              </div>
-            )}
-          </div>
-          <div className="space-y-3">
-            {alerts.map((alert) => (
-              <div key={alert.id} className="bg-white rounded-lg p-4 border border-red-200">
-                <h4 className="font-semibold text-red-800">{alert.title}</h4>
-                <p className="text-red-700 text-sm mt-1">{alert.description}</p>
-                <div className="text-xs text-red-600 mt-2">
-                  {new Date(alert.startTime).toLocaleDateString()} - {new Date(alert.endTime).toLocaleDateString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
 
       {/* 7-Day Forecast */}
       <motion.div 
@@ -357,48 +320,6 @@ const WeatherDashboard: React.FC<WeatherDashboardProps> = ({
         </div>
       </motion.div>
 
-      {/* Crop Weather Advice */}
-      {cropAdvice.length > 0 && (
-        <motion.div
-          className="bg-green-50 rounded-3xl shadow-xl p-6 sm:p-8 border border-green-200"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="text-green-600" size={20} />
-            <h3 className="text-lg font-bold text-green-800">
-              Weather Advice for {currentCrop.charAt(0).toUpperCase() + currentCrop.slice(1)}
-            </h3>
-          </div>
-
-          <div className="space-y-4">
-            {cropAdvice.map((advice, index) => (
-              <div 
-                key={index} 
-                className={`rounded-xl p-4 border-2 shadow-sm ${getPriorityColor(advice.priority)}`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-sm uppercase tracking-wide">
-                    {advice.priority} Priority
-                  </span>
-                  <span className="text-xs bg-white px-2 py-1 rounded">
-                    {advice.timeframe}
-                  </span>
-                </div>
-                <ul className="space-y-1">
-                  {advice.advice.map((item, idx) => (
-                    <li key={idx} className="text-sm flex items-start gap-2">
-                      <span className="w-1 h-1 bg-current rounded-full mt-2 flex-shrink-0"></span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
     </div>
   );
 };

@@ -4,7 +4,6 @@
 
 import { Location } from '../types/weather';
 import { reverseGeocodeBhuvan } from './backendService';
-import { reverseGeocodeAdmin } from './bhuvanService';
 import locationService from './locationService';
 import bhuvanLulcService, { LulcResponse } from './bhuvanLulcService';
 
@@ -186,23 +185,58 @@ class IntegratedLocationService {
         return;
       }
 
-      // Fallback to direct Bhuvan/OSM service
-      const adminResult = await reverseGeocodeAdmin(
+      // Fallback to OpenStreetMap via locationService
+      const osmResult = await this.fallbackToOSMGeocode(
         result.coordinates.latitude,
         result.coordinates.longitude
       );
 
       result.administrative = {
-        village: adminResult.village,
-        district: adminResult.district,
-        state: adminResult.state,
-        source: adminResult.source
+        village: osmResult.village,
+        district: osmResult.district,
+        state: osmResult.state,
+        country: osmResult.country,
+        source: 'nominatim'
       };
-      result.sources.push(`bhuvan-${adminResult.source}`);
+      result.sources.push('osm-nominatim');
 
     } catch (error) {
       console.warn('Failed to enrich with Bhuvan data:', error);
       result.sources.push('bhuvan-failed');
+    }
+  }
+
+  /**
+   * Fallback to OpenStreetMap reverse geocoding
+   */
+  private async fallbackToOSMGeocode(latitude: number, longitude: number): Promise<{
+    village?: string;
+    district?: string;
+    state?: string;
+    country?: string;
+  }> {
+    try {
+      // Using OpenStreetMap Nominatim API (same as locationService)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`
+      );
+
+      if (!response.ok) {
+        throw new Error('OSM reverse geocoding failed');
+      }
+
+      const data = await response.json();
+      const address = data.address || {};
+
+      return {
+        village: address.village || address.hamlet,
+        district: address.city || address.town || address.village || address.county,
+        state: address.state,
+        country: address.country
+      };
+    } catch (error) {
+      console.warn('OSM reverse geocoding failed:', error);
+      return {};
     }
   }
 

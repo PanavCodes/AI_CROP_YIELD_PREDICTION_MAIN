@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -14,15 +14,199 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Users,
-  MapPin
+  MapPin,
+  Loader,
+  RefreshCw,
+  ArrowDownCircle
 } from 'lucide-react';
+import { mockMarketData, mockGovernmentSchemes } from '../mockData/mockData';
+
+// API Service for fetching crop prices
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+const apiService = {
+  fetchCropPrices: async (token: string | null, filters = {}) => {
+    try {
+      // Use test endpoint if no token, or farmer endpoint with token
+      const endpoint = token 
+        ? '/farmer/crop-prices' 
+        : '/api/test/market-prices';
+      
+      const params = new URLSearchParams(filters);
+      const headers: any = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const response = await fetch(`${API_URL}${endpoint}?${params.toString()}`, {
+        headers
+      });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || data.detail || `HTTP error ${response.status}`);
+      }
+      return data;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error fetching crop prices:', errorMessage, error);
+      return { error: errorMessage };
+    }
+  }
+};
 
 const MarketInsights: React.FC = () => {
   const { t } = useTranslation();
   const [selectedCrop, setSelectedCrop] = useState('wheat');
   const [timeRange, setTimeRange] = useState('1M');
+  
+  // Real market data states
+  const [cropPricesData, setCropPricesData] = useState<any[]>([]);
+  const [isPricesLoading, setIsPricesLoading] = useState(true);
+  const [pricesError, setPricesError] = useState<string | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [filters, setFilters] = useState({
+    state: '',
+    commodity: '',
+    minPrice: '',
+    maxPrice: '',
+    modalPrice: '',
+    limit: '20'
+  });
+  
+  // Function to load crop prices
+  const loadCropPrices = async (newOffset = 0, append = false) => {
+    setIsPricesLoading(true);
+    setPricesError(null);
+    try {
+      const token = localStorage.getItem('token');
+      // No longer require token - test endpoint works without it
+      
+      const params = {
+        ...filters,
+        offset: newOffset.toString()
+      };
+      
+      // Remove empty filters
+      Object.keys(params).forEach(key => {
+        const paramKey = key as keyof typeof params;
+        if (!params[paramKey] || (typeof params[paramKey] === 'string' && (params[paramKey] as string).trim() === '')) {
+          delete params[paramKey];
+        }
+      });
+      
+      const response = await apiService.fetchCropPrices(token, params);
+      console.log('Crop prices response:', response);
+      
+      if (response.error) {
+        setPricesError(response.error);
+        setCropPricesData(append ? cropPricesData : []);
+      } else if (response.data?.records && Array.isArray(response.data.records)) {
+        // Handle government API response format
+        setCropPricesData(append ? [...cropPricesData, ...response.data.records] : response.data.records);
+        setHasMore(response.data.records.length === parseInt(filters.limit));
+      } else if (Array.isArray(response)) {
+        // Handle direct array response
+        setCropPricesData(append ? [...cropPricesData, ...response] : response);
+        setHasMore(response.length === parseInt(filters.limit));
+      } else {
+        setPricesError('No price data available');
+        setCropPricesData(append ? cropPricesData : []);
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error('Error loading crop prices:', error);
+      setPricesError('Failed to fetch crop prices');
+      setCropPricesData(append ? cropPricesData : []);
+      setHasMore(false);
+    }
+    setIsPricesLoading(false);
+  };
+  
+  // Load data on component mount
+  useEffect(() => {
+    loadCropPrices(0, false);
+  }, []);
+  
+  // Filter handlers
+  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleApplyFilters = async () => {
+    setOffset(0);
+    await loadCropPrices(0, false);
+  };
+  
+  const handleLoadMore = async () => {
+    const newOffset = offset + parseInt(filters.limit);
+    setOffset(newOffset);
+    await loadCropPrices(newOffset, true);
+  };
 
-  // Mock data for market prices
+  // Enhanced data service with comprehensive fallbacks
+  const getMarketDataWithFallback = () => {
+    try {
+      // If real market data is available, use it, otherwise fallback to mock data
+      if (cropPricesData && cropPricesData.length > 0) {
+        // Transform real API data to match expected format
+        const transformedData = cropPricesData.map(item => ({
+          commodity: item.commodity || 'Unknown',
+          price: parseInt(item.modal_price) || parseInt(item.min_price) || 0,
+          unit: '₹/quintal',
+          change: Math.floor(Math.random() * 100) - 50,
+          changePercent: `${(Math.random() * 10 - 5).toFixed(1)}%`,
+          trend: Math.random() > 0.5 ? 'up' : 'down',
+          market: item.market || item.district || 'Local Market',
+          lastUpdated: item.arrival_date || 'Today',
+          quality: item.grade || 'FAQ',
+          volume: '100-500 quintals'
+        }));
+        
+        return {
+          currentPrices: transformedData,
+          priceHistory: mockMarketData.priceHistory || {},
+          demandForecast: mockMarketData.demandForecast || [],
+          bestMarkets: mockMarketData.bestMarkets || []
+        };
+      }
+      // Return mock data if no real data available
+      return mockMarketData || {
+        currentPrices: [],
+        priceHistory: {},
+        demandForecast: [],
+        bestMarkets: []
+      };
+    } catch (error) {
+      console.error('Error in getMarketDataWithFallback:', error);
+      // Return safe fallback data
+      return {
+        currentPrices: [
+          {
+            commodity: 'Wheat',
+            price: 2250,
+            unit: '₹/quintal',
+            change: '+50',
+            changePercent: '+2.3%',
+            trend: 'up',
+            market: 'Local Market',
+            lastUpdated: 'Today',
+            quality: 'FAQ',
+            volume: '100 quintals'
+          }
+        ],
+        priceHistory: {},
+        demandForecast: [],
+        bestMarkets: []
+      };
+    }
+  };
+  
+  const marketData = getMarketDataWithFallback();
+
+  // Enhanced price history with fallback
   const priceHistory = [
     { date: 'Jan 1', wheat: 2100, rice: 2800, corn: 1800, cotton: 5200 },
     { date: 'Jan 8', wheat: 2150, rice: 2850, corn: 1850, cotton: 5300 },
@@ -33,9 +217,9 @@ const MarketInsights: React.FC = () => {
   ];
 
   const demandData = [
-    { name: t('marketInsights.localMarket'), value: 35, color: '#10b981' },
-    { name: t('marketInsights.stateMarket'), value: 40, color: '#3b82f6' },
-    { name: t('marketInsights.export'), value: 25, color: '#8b5cf6' },
+    { name: 'Local Market', value: 35, color: '#10b981' },
+    { name: 'State Market', value: 40, color: '#3b82f6' },
+    { name: 'Export', value: 25, color: '#8b5cf6' },
   ];
 
   const topBuyers = [
@@ -45,19 +229,55 @@ const MarketInsights: React.FC = () => {
     { name: 'Rural Traders', volume: '280 tons', price: '₹2,200/q', trend: 'up', change: '+1%' },
   ];
 
-  const nearbyMandis = [
-    { name: 'Hisar Mandi', distance: '12 km', price: '₹2,280/q', availability: 'High' },
-    { name: 'Rohtak Mandi', distance: '25 km', price: '₹2,320/q', availability: 'Medium' },
-    { name: 'Jind Mandi', distance: '38 km', price: '₹2,250/q', availability: 'High' },
-    { name: 'Karnal Mandi', distance: '45 km', price: '₹2,340/q', availability: 'Low' },
-  ];
+  // Use comprehensive mock data for nearby markets with enhanced availability data
+  const nearbyMandis = (marketData.bestMarkets || [
+    { name: 'Hisar Mandi', distance: '12 km', commission: '2.0%', facilities: ['Grading', 'Storage'] },
+    { name: 'Rohtak Mandi', distance: '25 km', commission: '1.8%', facilities: ['Direct Payment'] },
+    { name: 'Jind Mandi', distance: '38 km', commission: '2.2%', facilities: ['Quality Testing'] },
+    { name: 'Karnal Mandi', distance: '45 km', commission: '2.5%', facilities: ['Insurance', 'Transport'] },
+  ]).map((mandi, index) => ({
+    ...mandi,
+    price: `₹${2200 + index * 40}/q`,
+    availability: ['High', 'Medium', 'High', 'Medium'][index] || 'High'
+  }));
 
-  const cropPrices = [
-    { crop: t('marketInsights.wheat'), current: 2300, msp: 2125, change: +8.2, icon: '🌾' },
-    { crop: t('marketInsights.rice'), current: 3050, msp: 2040, change: +49.5, icon: '🌾' },
-    { crop: t('marketInsights.corn'), current: 2050, msp: 2090, change: -1.9, icon: '🌽' },
-    { crop: t('marketInsights.cotton'), current: 5700, msp: 6620, change: -13.9, icon: '🏵️' },
-  ];
+  // Use enhanced crop prices from mock data with MSP fallback
+  const cropPrices = (marketData.currentPrices || []).map(item => {
+    const mspValues: { [key: string]: number } = {
+      'Wheat': 2125,
+      'Rice': 2100,
+      'Cotton': 6080,
+      'Maize': 1962,
+      'Sugarcane': 315,
+      'Onion': 1800
+    };
+    
+    return {
+      crop: item.commodity || 'Unknown',
+      current: item.price || item.modal_price || 0,
+      change: item.changePercent ? parseFloat(item.changePercent.replace('%', '').replace('+', '')) : Math.random() * 10 - 5,
+      icon: getCropIcon(item.commodity || 'Unknown'),
+      trend: item.trend || (Math.random() > 0.5 ? 'up' : 'down'),
+      market: item.market || item.district || 'Local Market',
+      volume: item.volume || '100-200 tons',
+      quality: item.quality || item.grade || 'FAQ',
+      lastUpdated: item.lastUpdated || item.arrival_date || new Date().toLocaleDateString(),
+      msp: mspValues[item.commodity] || (typeof item.price === 'number' ? item.price * 0.9 : parseInt(item.modal_price) * 0.9) || 2000
+    };
+  });
+
+  // Helper function to get crop icons
+  function getCropIcon(cropName: string) {
+    const icons = {
+      'Wheat': '🌾',
+      'Rice': '🌾', 
+      'Cotton': '🏵️',
+      'Maize': '🌽',
+      'Sugarcane': '🎋',
+      'Onion': '🧅'
+    };
+    return icons[cropName as keyof typeof icons] || '🌱';
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 py-6 px-4">
@@ -89,37 +309,164 @@ const MarketInsights: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Current Crop Prices */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {cropPrices.map((crop, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-xl shadow-lg p-5 border border-gray-100"
+        {/* Real-time Market Prices Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100"
+        >
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <DollarSign className="text-purple-600" />
+                Live Market Prices
+              </h2>
+              <p className="text-gray-600 mt-1">Real-time crop prices from various markets across India</p>
+            </div>
+            <button
+              onClick={() => loadCropPrices(0, false)}
+              disabled={isPricesLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50"
             >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-2xl">{crop.icon}</span>
-                <span className={`flex items-center gap-1 text-sm font-medium ${crop.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {crop.change > 0 ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                  {Math.abs(crop.change)}%
-                </span>
+              <RefreshCw className={`w-4 h-4 ${isPricesLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          {/* Filters */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <input
+              type="text"
+              name="state"
+              value={filters.state}
+              onChange={handleFilterChange}
+              placeholder="State (e.g., Karnataka)"
+              className="px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+            <input
+              type="text"
+              name="commodity"
+              value={filters.commodity}
+              onChange={handleFilterChange}
+              placeholder="Commodity (e.g., Rice)"
+              className="px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+            <input
+              type="number"
+              name="minPrice"
+              value={filters.minPrice}
+              onChange={handleFilterChange}
+              placeholder="Min Price (₹)"
+              className="px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+            <input
+              type="number"
+              name="modalPrice"
+              value={filters.modalPrice}
+              onChange={handleFilterChange}
+              placeholder="Modal Price (₹)"
+              className="px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
+
+          <button
+            onClick={handleApplyFilters}
+            disabled={isPricesLoading}
+            className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg disabled:opacity-50 mb-6"
+          >
+            {isPricesLoading ? (
+              <>
+                <Loader className="w-5 h-5 mr-2 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-5 h-5 mr-2" />
+                Apply Filters
+              </>
+            )}
+          </button>
+
+          {/* Market Prices Table */}
+          {isPricesLoading && cropPricesData.length === 0 ? (
+            <div className="text-center py-16">
+              <Loader className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+              <p className="text-gray-600">Loading market prices...</p>
+            </div>
+          ) : pricesError ? (
+            <div className="text-center py-16 bg-red-50 rounded-xl">
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h4 className="text-xl font-semibold text-red-700">Error</h4>
+              <p className="text-red-600 mt-2">{pricesError}</p>
+            </div>
+          ) : cropPricesData.length === 0 ? (
+            <div className="text-center py-16 bg-gray-50 rounded-xl">
+              <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">No price data available</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">State</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">District</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Market</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commodity</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variety</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Arrival Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Price (₹)</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Price (₹)</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Modal Price (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {cropPricesData.map((price, index) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition-colors'}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{price.state || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{price.district || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{price.market || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600">{price.commodity || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{price.variety || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{price.grade || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{price.arrival_date || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">{price.min_price ? `₹${price.min_price}` : 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">{price.max_price ? `₹${price.max_price}` : 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{price.modal_price ? `₹${price.modal_price}` : 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <h3 className="font-bold text-gray-800">{crop.crop}</h3>
-              <p className="text-2xl font-bold text-gray-900 mt-1">₹{crop.current}</p>
-              <p className="text-xs text-gray-500 mt-1">{t('marketInsights.msp')}: ₹{crop.msp}</p>
-              <div className="mt-3">
-                <div className="w-full bg-gray-200 rounded-full h-1.5">
-                  <div 
-                    className={`h-1.5 rounded-full ${crop.current > crop.msp ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${Math.min((crop.current / crop.msp) * 100, 100)}%` }}
-                  />
+              
+              {hasMore && (
+                <div className="text-center mt-6">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={isPricesLoading}
+                    className="flex items-center px-6 py-3 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-xl hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg disabled:opacity-50 mx-auto"
+                  >
+                    {isPricesLoading ? (
+                      <>
+                        <Loader className="w-5 h-5 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDownCircle className="w-5 h-5 mr-2" />
+                        Load More
+                      </>
+                    )}
+                  </button>
                 </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+              )}
+            </>
+          )}
+        </motion.div>
+
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Price Trend Chart */}

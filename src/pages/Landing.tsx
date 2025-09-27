@@ -105,11 +105,11 @@ const Landing: React.FC = () => {
                 </Link>
               ) : (
                 <div className="flex items-center space-x-4">
-                  <Link to="/login" className="text-gray-700 hover:text-green-600 transition-colors">
+                  <Link to="/login" className="text-gray-700 hover:text-green-600 transition-colors font-medium">
                     Sign In
                   </Link>
-                  <Link to="/signup" className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                    Get Started
+                  <Link to="/signup" className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium">
+                    Sign Up
                   </Link>
                 </div>
               )}
@@ -137,11 +137,11 @@ const Landing: React.FC = () => {
                   </Link>
                 ) : (
                   <div className="flex flex-col space-y-2">
-                    <Link to="/login" className="text-gray-700 hover:text-green-600 transition-colors text-center">
+                    <Link to="/login" className="text-gray-700 hover:text-green-600 transition-colors text-center font-medium">
                       Sign In
                     </Link>
-                    <Link to="/signup" className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors text-center">
-                      Get Started
+                    <Link to="/signup" className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors text-center font-medium">
+                      Sign Up
                     </Link>
                   </div>
                 )}
@@ -164,13 +164,22 @@ const Landing: React.FC = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               {!isAuthenticated() && (
-                <Link 
-                  to="/signup"
-                  className="bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-2"
-                >
-                  <span>Start Your Journey</span>
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
+                <>
+                  <Link 
+                    to="/signup"
+                    className="bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-4 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl flex items-center space-x-2"
+                  >
+                    <span>Sign Up Free</span>
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                  <Link 
+                    to="/login"
+                    className="border-2 border-green-600 text-green-600 px-8 py-4 rounded-xl font-semibold hover:bg-green-600 hover:text-white transition-all duration-300 flex items-center space-x-2"
+                  >
+                    <span>Sign In</span>
+                    <ChevronRight className="w-5 h-5" />
+                  </Link>
+                </>
               )}
               <button className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-xl font-semibold hover:border-green-600 hover:text-green-600 transition-all duration-300 flex items-center space-x-2">
                 <span>Watch Demo</span>
@@ -286,13 +295,22 @@ const Landing: React.FC = () => {
             Join the agricultural revolution and start making data-driven decisions for better yields and profitability.
           </p>
           {!isAuthenticated() && (
-            <Link 
-              to="/signup"
-              className="bg-gradient-to-r from-green-600 to-green-700 text-white px-10 py-4 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-flex items-center space-x-2"
-            >
-              <span>Get Started Today</span>
-              <ArrowRight className="w-5 h-5" />
-            </Link>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Link 
+                to="/signup"
+                className="bg-gradient-to-r from-green-600 to-green-700 text-white px-10 py-4 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl inline-flex items-center space-x-2"
+              >
+                <span>Sign Up Free</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <Link 
+                to="/login"
+                className="border-2 border-green-600 text-green-600 px-10 py-4 rounded-xl font-semibold hover:bg-green-600 hover:text-white transition-all duration-300 inline-flex items-center space-x-2"
+              >
+                <span>Already have an account? Sign In</span>
+                <ChevronRight className="w-5 h-5" />
+              </Link>
+            </div>
           )}
         </div>
       </section>

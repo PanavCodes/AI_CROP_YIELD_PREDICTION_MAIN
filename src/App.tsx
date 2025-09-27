@@ -10,6 +10,7 @@ import Navigation from './components/Navigation';
 import AIChatbotEnhanced from './components/AIChatbotEnhanced';
 import OnboardingFlow from './components/OnboardingFlow';
 import RouteTransition from './components/RouteTransition';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import Landing from './pages/Landing';
@@ -22,6 +23,7 @@ import ProfileSettings from './pages/profile-settings';
 import MarketInsights from './pages/MarketInsights';
 import CropAnalysis from './pages/CropAnalysis';
 import YieldPrediction from './pages/YieldPrediction';
+import DiagnosticTest from './pages/DiagnosticTest';
 
 function App() {
   // Enhanced automatic sign-out when browser/tab is closed or localhost stops
@@ -122,9 +124,10 @@ function App() {
     };
 
     // Set up heartbeat to check server connection every 30 seconds
-    if (isAuthenticated()) {
-      heartbeatInterval = setInterval(checkServerConnection, 30000);
-    }
+    // TEMPORARILY DISABLED FOR DEBUGGING
+    // if (isAuthenticated()) {
+    //   heartbeatInterval = setInterval(checkServerConnection, 30000);
+    // }
 
     // Add all event listeners for comprehensive coverage
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -160,8 +163,15 @@ function App() {
     const user = getCurrentUser();
     const location = useLocation();
     
+    console.log('PrivateRoute check:', {
+      authenticated,
+      user: user?.email,
+      path: location.pathname
+    });
+    
     // If not authenticated, redirect to login
     if (!authenticated) {
+      console.log('User not authenticated, redirecting to login');
       return <Navigate to="/login" />;
     }
     
@@ -186,12 +196,20 @@ function App() {
                           location.pathname !== '/landing' && 
                           isAuthenticated();
     
+    console.log('AppLayout render:', {
+      path: location.pathname,
+      showNavigation,
+      authenticated: isAuthenticated()
+    });
+    
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
         {showNavigation && <Navigation />}
-        <RouteTransition>
-          {children}
-        </RouteTransition>
+        <ErrorBoundary>
+          <RouteTransition>
+            {children}
+          </RouteTransition>
+        </ErrorBoundary>
         {showNavigation && <AIChatbotEnhanced />}
       </div>
     );
@@ -291,6 +309,14 @@ function App() {
             element={
               <PrivateRoute>
                 <YieldPrediction />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/diagnostic-test"
+            element={
+              <PrivateRoute>
+                <DiagnosticTest />
               </PrivateRoute>
             }
           />

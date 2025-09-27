@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { 
@@ -22,13 +23,7 @@ import {
 } from 'lucide-react';
 import { GiWheat } from 'react-icons/gi';
 import { FaSeedling, FaLeaf } from 'react-icons/fa';
-import { 
-  mockWeatherData, 
-  mockCropPredictions, 
-  mockYieldTrends, 
-  fertilizerPlanData,
-  irrigationPlanData 
-} from '../mockData/mockData';
+import RealDataService from '../services/realDataService';
 import { getCurrentUser } from '../utils/userUtils';
 import AIYieldModal from '../components/AIYieldModal';
 import { 
@@ -37,9 +32,21 @@ import {
   getCropRecommendations, 
   getCropMarketInsights 
 } from '../utils/cropDataUtils';
+import { 
+  mockDashboardStats, 
+  mockFieldData, 
+  mockWeatherData, 
+  mockMarketData,
+  mockYieldTrends,
+  mockCropPredictions,
+  mockOptimizations,
+  fertilizerPlanData,
+  irrigationPlanData
+} from '../mockData/mockData';
 import WeatherDashboard from '../components/WeatherDashboard';
 import FieldLocationDebug from '../components/FieldLocationDebug';
 import MultiFieldYieldPrediction from '../components/MultiFieldYieldPrediction.jsx';
+import ProfileSwitcher from '../components/ProfileSwitcher';
 import { Location } from '../types/weather';
 
 // Type for field profiles
@@ -78,13 +85,13 @@ interface FieldProfile {
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [showAIModal, setShowAIModal] = useState(false);
   const currentUser = getCurrentUser();
   
   // Profile management states
   const [selectedProfile, setSelectedProfile] = useState<number>(0);
   const [selectedCrop, setSelectedCrop] = useState<number>(0);
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   
   // Weather-related state
   const [userLocation, setUserLocation] = useState<Location | null>(null);
@@ -96,20 +103,109 @@ const Dashboard: React.FC = () => {
   
   // Load profiles from localStorage
   useEffect(() => {
-    try {
-      const savedProfiles = localStorage.getItem('fieldProfiles');
-      if (savedProfiles) {
-        const parsedProfiles = JSON.parse(savedProfiles);
-        setProfiles(parsedProfiles);
+    const loadProfiles = () => {
+      try {
+        const savedProfiles = localStorage.getItem('fieldProfiles');
+        console.log('Loading profiles from localStorage:', savedProfiles);
+        if (savedProfiles) {
+          const parsedProfiles = JSON.parse(savedProfiles);
+          console.log('Parsed profiles:', parsedProfiles);
+          setProfiles(parsedProfiles);
+        } else {
+          console.log('No saved profiles found');
+          setProfiles([]);
+        }
+      } catch (error) {
+        console.error('Error loading profiles:', error);
+        setProfiles([]);
       }
-    } catch (error) {
-      console.error('Error loading profiles:', error);
-    }
+    };
+
+    // Load profiles initially
+    loadProfiles();
+
+    // Listen for storage changes (when profiles are updated in another tab/component)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'fieldProfiles') {
+        console.log('Profiles updated in localStorage, reloading...');
+        loadProfiles();
+      }
+    };
+
+    // Listen for custom events when profiles are updated in the same tab
+    const handleProfileUpdate = () => {
+      console.log('Profiles updated via custom event, reloading...');
+      loadProfiles();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('profilesUpdated', handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('profilesUpdated', handleProfileUpdate);
+    };
   }, []);
 
-  // Get current profile and crop
-  const currentProfile = profiles[selectedProfileIndex];
-  const currentCrop = currentProfile?.field_profile?.crops?.[selectedCropIndex];
+  // Reset selected indices when profiles change or become invalid
+  useEffect(() => {
+    if (profiles.length === 0) {
+      setSelectedProfile(0);
+      setSelectedCrop(0);
+    } else {
+      // Ensure selected profile index is valid
+      if (selectedProfile >= profiles.length) {
+        setSelectedProfile(0);
+        setSelectedCrop(0);
+      } else {
+        // Ensure selected crop index is valid for current profile
+        const profile = profiles[selectedProfile];
+        if (profile?.field_profile?.crops && selectedCrop >= profile.field_profile.crops.length) {
+          setSelectedCrop(0);
+        }
+      }
+    }
+  }, [profiles, selectedProfile, selectedCrop]);
+
+  // Get current profile and crop with bounds checking
+  const currentProfile = profiles.length > 0 && selectedProfileIndex < profiles.length 
+    ? profiles[selectedProfileIndex] 
+    : null;
+  const currentCrop = currentProfile?.field_profile?.crops && currentProfile.field_profile.crops.length > 0 && selectedCropIndex < currentProfile.field_profile.crops.length
+    ? currentProfile.field_profile.crops[selectedCropIndex]
+    : null;
+
+  // Load real data when profiles change
+  useEffect(() => {
+    const loadRealData = async () => {
+      setIsLoadingRealData(true);
+      try {
+        // Load weather data
+        const weatherData = await RealDataService.getWeatherData(selectedProfile, selectedCrop);
+        setRealWeatherData(weatherData);
+        
+        // Load market prices if we have a current crop
+        if (currentCrop) {
+          const marketPricesResult = await RealDataService.getMarketPrices(
+            currentCrop.crop_type, 
+            currentProfile?.field_profile?.location?.state
+          );
+          setRealMarketPrices(marketPricesResult.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to load real data:', error);
+      } finally {
+        setIsLoadingRealData(false);
+      }
+    };
+
+    loadRealData();
+  }, [selectedProfile, selectedCrop, currentProfile, currentCrop]);
+
+  // Real data state
+  const [realWeatherData, setRealWeatherData] = useState<any>(null);
+  const [realMarketPrices, setRealMarketPrices] = useState<any[]>([]);
+  const [isLoadingRealData, setIsLoadingRealData] = useState(false);
 
   // Set location from selected field profile
   useEffect(() => {
@@ -162,53 +258,125 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Dynamic soil nutrients data based on current crop
-  const getSoilNutrientsData = () => {
+  // Soil nutrients data state
+  const [soilNutrientsData, setSoilNutrientsData] = useState([
+    { name: t('dashboard.nitrogen'), value: 0, ideal: 50, color: '#10b981' },
+    { name: t('dashboard.phosphorus'), value: 0, ideal: 25, color: '#f59e0b' },
+    { name: t('dashboard.potassium'), value: 0, ideal: 40, color: '#3b82f6' },
+  ]);
+
+  // Load soil nutrients data asynchronously
+  useEffect(() => {
+    const loadSoilNutrients = async () => {
+      try {
+        const realNutrients = await RealDataService.getSoilNutrients(selectedProfile, selectedCrop);
+        const formattedNutrients = realNutrients.map(nutrient => ({
+          name: t(`dashboard.${nutrient.name.toLowerCase()}`),
+          value: nutrient.value,
+          ideal: nutrient.ideal,
+          color: nutrient.color
+        }));
+        setSoilNutrientsData(formattedNutrients);
+      } catch (error) {
+        console.error('Error loading soil nutrients data:', error);
+        setSoilNutrientsData([
+          { name: t('dashboard.nitrogen'), value: 0, ideal: 50, color: '#10b981' },
+          { name: t('dashboard.phosphorus'), value: 0, ideal: 25, color: '#f59e0b' },
+          { name: t('dashboard.potassium'), value: 0, ideal: 40, color: '#3b82f6' },
+        ]);
+      }
+    };
+
+    loadSoilNutrients();
+  }, [selectedProfile, selectedCrop, t]);
+  
+  // Enhanced data service with fallbacks
+  const getDataWithFallback = (dataFetcher: () => any, fallbackData: any) => {
     try {
-      const currentCropData = getCurrentCropData();
-      const soilTestResults = currentCrop?.soil_test_results;
-      
-      return [
-        { 
-          name: t('dashboard.nitrogen'), 
-          value: soilTestResults?.N || fertilizerPlanData.currentNutrients.nitrogen, 
-          ideal: currentCropData?.fertilizer?.nitrogen || 50, 
-          color: '#10b981' 
-        },
-        { 
-          name: t('dashboard.phosphorus'), 
-          value: soilTestResults?.P || fertilizerPlanData.currentNutrients.phosphorus, 
-          ideal: currentCropData?.fertilizer?.phosphorus || 25, 
-          color: '#f59e0b' 
-        },
-        { 
-          name: t('dashboard.potassium'), 
-          value: soilTestResults?.K || fertilizerPlanData.currentNutrients.potassium, 
-          ideal: currentCropData?.fertilizer?.potassium || 40, 
-          color: '#3b82f6' 
-        },
-      ];
+      const data = dataFetcher();
+      return data && Object.keys(data).length > 0 ? data : fallbackData;
     } catch (error) {
-      console.error('Error in getSoilNutrientsData:', error);
-      return [
-        { name: t('dashboard.nitrogen'), value: 45, ideal: 50, color: '#10b981' },
-        { name: t('dashboard.phosphorus'), value: 22, ideal: 25, color: '#f59e0b' },
-        { name: t('dashboard.potassium'), value: 38, ideal: 40, color: '#3b82f6' },
-      ];
+      console.warn('Data fetch failed, using fallback:', error);
+      return fallbackData;
     }
   };
-  
-  const soilNutrientsData = getSoilNutrientsData();
 
-  // Mock market price data
-  const marketPriceData = [
-    { month: 'Jan', price: 2100 },
-    { month: 'Feb', price: 2150 },
-    { month: 'Mar', price: 2200 },
-    { month: 'Apr', price: 2180 },
-    { month: 'May', price: 2250 },
-    { month: 'Jun', price: 2300 },
-  ];
+  // Get data with smart fallbacks
+  const realCropPredictions = getDataWithFallback(
+    () => RealDataService.getCropPredictions(selectedProfile, selectedCrop),
+    {
+      ...mockCropPredictions,
+      currentCrop: currentCrop?.crop_type || 'Wheat',
+      predictedYield: currentProfile ? 45.5 : mockCropPredictions.predictedYield,
+      confidence: 85,
+      marketPrice: 2250
+    }
+  );
+  
+  const realYieldTrends = getDataWithFallback(
+    () => RealDataService.getYieldTrends(selectedProfile),
+    mockYieldTrends
+  );
+  
+  const realIrrigationPlan = getDataWithFallback(
+    () => RealDataService.getIrrigationPlan(selectedProfile),
+    {
+      ...irrigationPlanData,
+      soilMoisture: currentProfile ? 68 : irrigationPlanData.soilMoisture,
+      nextIrrigation: 'Tomorrow 6:00 AM'
+    }
+  );
+  
+  const realFertilizerPlan = getDataWithFallback(
+    () => RealDataService.getFertilizerPlan(selectedProfile, selectedCrop),
+    {
+      ...fertilizerPlanData,
+      currentPhase: currentCrop ? 'Growth Phase' : fertilizerPlanData.currentPhase
+    }
+  );
+
+  // Enhanced market price data with fallbacks
+  const marketPriceData = realMarketPrices.length > 0 ? 
+    realMarketPrices.slice(0, 6).map(item => ({
+      month: new Date(item.date || Date.now()).toLocaleDateString('en', { month: 'short' }),
+      price: item.modal_price || item.price || 2200
+    })) : 
+    mockMarketData.priceHistory.wheat.map(item => ({
+      month: new Date(item.date).toLocaleDateString('en', { month: 'short' }),
+      price: item.price
+    }));
+
+  // Dashboard stats with real data integration
+  const dashboardStats = {
+    ...mockDashboardStats,
+    totalFields: profiles.length || mockDashboardStats.totalFields,
+    totalArea: profiles.length > 0 ? 
+      `${profiles.reduce((sum, p) => sum + (p.field_profile?.field_size_hectares || 0), 0).toFixed(1)} hectares` :
+      mockDashboardStats.totalArea,
+    activeCrops: profiles.reduce((count, p) => count + (p.field_profile?.crops?.length || 0), 0) || mockDashboardStats.activeCrops,
+    currentSeason: getCurrentSeason(),
+    nextHarvest: currentCrop ? getNextHarvestDate() : mockDashboardStats.nextHarvest
+  };
+
+  // Helper functions
+  function getCurrentSeason() {
+    const month = new Date().getMonth() + 1;
+    if (month >= 4 && month <= 6) return 'Kharif';
+    if (month >= 10 && month <= 3) return 'Rabi';
+    return 'Zaid';
+  }
+
+  function getNextHarvestDate() {
+    if (!currentCrop || !currentCrop.planting_date) return 'Not available';
+    try {
+      const plantingDate = new Date(currentCrop.planting_date.split('-').reverse().join('-'));
+      const harvestDate = new Date(plantingDate);
+      harvestDate.setDate(harvestDate.getDate() + 120); // Approximate growing period
+      return harvestDate.toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' });
+    } catch {
+      return 'March 15, 2024';
+    }
+  }
 
   // Dynamic crop suggestions based on current field profile
   const getCropSuggestions = () => {
@@ -289,15 +457,7 @@ const Dashboard: React.FC = () => {
   
   // Dynamic yield prediction based on current crop and soil conditions
   const getPredictedYield = () => {
-    if (!currentCrop || !currentProfile) return mockCropPredictions.predictedYield.toString();
-    
-    const calculatedYield = calculateCropYield(
-      currentCrop.crop_type,
-      currentProfile.field_profile.soil_type,
-      currentCrop.soil_test_results || undefined
-    );
-    
-    return calculatedYield.toString();
+    return realCropPredictions.predictedYield.toString();
   };
 
   // Get current crop data
@@ -313,14 +473,7 @@ const Dashboard: React.FC = () => {
 
   // Get crop-specific market price
   const getCurrentMarketPrice = () => {
-    try {
-      if (!currentCrop) return mockCropPredictions.marketPrice;
-      const marketInsights = getCropMarketInsights(currentCrop.crop_type);
-      return marketInsights.currentPrice;
-    } catch (error) {
-      console.error('Error in getCurrentMarketPrice:', error);
-      return mockCropPredictions.marketPrice;
-    }
+    return realCropPredictions.marketPrice;
   };
 
   // Get crop-specific recommendations
@@ -340,165 +493,90 @@ const Dashboard: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-amber-50 dark:from-gray-900 dark:to-gray-800 py-4 px-3 sm:px-5 lg:px-6 transition-colors duration-200">
-      <div className="max-w-7xl mx-auto space-y-4">
-        {/* Header with Profile Switcher */}
+    <div className="min-h-screen bg-gradient-to-br from-green-50/50 via-white to-emerald-50/50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-6 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Enhanced Header with Profile Switcher */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-white to-green-50 dark:from-gray-800 dark:to-gray-700 rounded-3xl shadow-xl p-4 sm:p-5 border border-green-100 dark:border-gray-600"
+          className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-green-100/50 dark:border-gray-700/50 overflow-hidden backdrop-blur-sm"
         >
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-green-700 to-emerald-600 bg-clip-text text-transparent flex items-center gap-3">
-                <Leaf className="text-4xl text-green-600" />
-                {t('dashboard.title')}
-              </h1>
-              {currentUser && (
-                <div className="mt-2 flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                  <User size={16} />
-                  <span className="text-sm">
-                    {t('dashboard.welcomeBack')}, <span className="font-semibold text-green-700 dark:text-green-400">{currentUser.name}</span>
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <motion.div 
-                className="px-4 py-2 bg-blue-100/80 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 rounded-xl font-medium text-sm flex items-center gap-2 shadow-sm"
-                whileHover={{ scale: 1.05 }}
-              >
-                <Calendar size={16} />
-                <span>{dateInfo.fullDate}</span>
-              </motion.div>
-              <motion.div 
-                className="px-4 py-2 bg-green-100/80 dark:bg-green-900/30 text-green-900 dark:text-green-200 rounded-xl font-medium text-sm shadow-sm"
-                whileHover={{ scale: 1.05 }}
-              >
-                {t('dashboard.season')}: {t('dashboard.rabi')} 2024
-              </motion.div>
-              <motion.div 
-                className="px-4 py-2 bg-amber-100/80 dark:bg-amber-900/30 text-amber-900 dark:text-amber-200 rounded-xl font-medium text-sm shadow-sm"
-                whileHover={{ scale: 1.05 }}
-              >
-                {t('dashboard.field')}: {currentProfile?.field_profile?.field_size_hectares || '12.5'} {t('dashboard.hectares')}
-              </motion.div>
-            </div>
-          </div>
-          
-          {/* Profile and Crop Selector */}
-          {profiles.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-              <div className="flex flex-wrap items-center gap-4">
-                {/* Field Profile Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                    className="flex items-center gap-3 px-4 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-700 dark:to-gray-600 border border-green-300 dark:border-gray-500 rounded-xl hover:shadow-md transition-all"
-                  >
-                    <MapPin size={16} className="text-green-600" />
-                    <div className="text-left">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">Active Field</p>
-                      <p className="font-semibold text-gray-800 dark:text-gray-200 tracking-tight">
-                        {currentProfile?.field_profile?.field_name || t('dashboard.selectField')}
-                      </p>
+          {/* Main Header Section */}
+          <div className="bg-gradient-to-r from-green-50 via-white to-emerald-50 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 px-8 py-6 border-b border-green-100/50 dark:border-gray-600/50">
+            <div className="flex items-start justify-between flex-wrap gap-6">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent flex items-center gap-4 mb-3">
+                  <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 rounded-2xl shadow-lg">
+                    <Leaf className="text-3xl text-green-600" />
+                  </div>
+                  {t('dashboard.title')}
+                </h1>
+                {currentUser && (
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <User size={16} className="text-blue-600" />
                     </div>
-                    <ChevronDown size={16} className={`text-gray-600 transition-transform ${profileDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-                  
-                  {profileDropdownOpen && (
-                    <div className="absolute top-full mt-2 left-0 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-2 z-50">
-                      <div className="px-3 pb-2 mb-2 border-b border-gray-100 dark:border-gray-600">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">SAVED FIELD PROFILES</p>
-                      </div>
-                      {profiles.map((profile, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setSelectedProfile(idx);
-                            setSelectedCrop(0); // Reset to first crop
-                            setProfileDropdownOpen(false);
-                          }}
-                          className={`w-full px-3 py-2.5 text-left rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                            selectedProfileIndex === idx ? 'bg-green-50 dark:bg-green-900/30 ring-1 ring-green-300 dark:ring-green-600' : ''
-                          }`}
-                        >
-                          <p className="font-medium text-gray-800 dark:text-gray-200">{profile.field_profile.field_name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {profile.field_profile.field_size_hectares} ha • {profile.field_profile.soil_type} • 
-                            {profile.field_profile.crops.length} crop{profile.field_profile.crops.length > 1 ? 's' : ''}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Crop Selector Chips */}
-                {currentProfile && currentProfile.field_profile.crops.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Crops:</span>
-                    <div className="flex gap-2 flex-wrap">
-                      {currentProfile.field_profile.crops.map((crop, idx) => {
-                        const CropIcon = getCropIcon(crop.crop_type);
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => setSelectedCrop(idx)}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all ${
-                              selectedCropIndex === idx
-                                ? 'bg-green-600 text-white shadow-md ring-2 ring-green-300 dark:ring-green-600'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            <CropIcon className="text-base" />
-                            {crop.crop_type}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <span className="text-lg font-medium">
+                      {t('dashboard.welcomeBack')}, <span className="font-bold text-green-700 dark:text-green-400">{currentUser.name}</span>
+                    </span>
                   </div>
                 )}
               </div>
               
-              {/* Current Selection Info */}
-              {currentCrop && (
-                <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                  <div className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
-                    <Calendar size={14} />
-                    <span>Planted: {currentCrop.planting_date}</span>
-                  </div>
-                  {currentCrop.soil_test_results && (
-                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                        N: {currentCrop.soil_test_results.N || '-'}
-                      </span>
-                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                        P: {currentCrop.soil_test_results.P || '-'}
-                      </span>
-                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                        K: {currentCrop.soil_test_results.K || '-'}
-                      </span>
-                      <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                        pH: {currentCrop.soil_test_results.pH || '-'}
-                      </span>
-                    </div>
-                  )}
+              {/* Enhanced Status Badges */}
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3 flex-wrap">
+                  <motion.div 
+                    className="px-5 py-2.5 bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 text-blue-900 dark:text-blue-100 rounded-2xl font-semibold text-sm flex items-center gap-3 shadow-lg border border-blue-200/50 dark:border-blue-700/50"
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <Calendar size={18} className="text-blue-600" />
+                    <span>{dateInfo.fullDate}</span>
+                  </motion.div>
+                  <motion.div 
+                    className="px-5 py-2.5 bg-gradient-to-r from-green-100 to-emerald-200 dark:from-green-900/40 dark:to-emerald-800/40 text-green-900 dark:text-green-100 rounded-2xl font-semibold text-sm shadow-lg border border-green-200/50 dark:border-green-700/50"
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Season: {dashboardStats.currentSeason} 2025
+                  </motion.div>
                 </div>
-              )}
-            </div>
-          )}
-          
-          {/* No Profiles Message */}
-          {profiles.length === 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  No field profiles found. Please go to Data Input to create your first field profile.
-                </p>
               </div>
             </div>
-          )}
+          </div>
+          
+          {/* Profile Switcher */}
+          <div className="px-8 py-6">
+            <ProfileSwitcher
+              profiles={profiles}
+              selectedProfile={selectedProfile}
+              selectedCrop={selectedCrop}
+              onProfileChange={(profileIndex: number) => {
+                setSelectedProfile(profileIndex);
+                setSelectedCrop(0); // Reset to first crop when switching profiles
+              }}
+              onCropChange={setSelectedCrop}
+              showCropSelector={true}
+              onNavigateToDataInput={() => window.location.href = '/data-input'}
+            />
+            
+            {/* Yield Prediction Navigation */}
+            {profiles.length > 0 && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => navigate('/yield-prediction')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
+                >
+                  <TrendingUp className="w-5 h-5" />
+                  View AI Yield Predictions
+                </button>
+                <p className="text-sm text-gray-600 mt-2">
+                  Get ML-powered yield predictions for all your fields
+                </p>
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {/* Key Metrics Cards - Top Priority */}
@@ -533,12 +611,12 @@ const Dashboard: React.FC = () => {
             <div className="mt-3">
               <div className="flex justify-between items-center text-xs mb-1">
                 <span className="text-gray-600 dark:text-gray-400">{t('dashboard.aiConfidence')}</span>
-                <span className="font-medium text-green-700 dark:text-green-400">{mockCropPredictions.confidence}%</span>
+                <span className="font-medium text-green-700 dark:text-green-400">{realCropPredictions.confidence}%</span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3">
                 <div 
                   className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500 shadow-inner"
-                  style={{ width: `${mockCropPredictions.confidence}%` }}
+                  style={{ width: `${realCropPredictions.confidence}%` }}
                 />
               </div>
             </div>
@@ -561,13 +639,13 @@ const Dashboard: React.FC = () => {
             </div>
             <h3 className="text-gray-700 dark:text-gray-300 font-medium text-sm mb-1">{t('dashboard.soilMoisture')}</h3>
             <div className="flex items-baseline gap-3">
-              <span className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight">{irrigationPlanData.soilMoisture}%</span>
+              <span className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight">{realIrrigationPlan.soilMoisture}%</span>
               <span className="text-base text-gray-600 dark:text-gray-400">{t('dashboard.moisture')}</span>
             </div>
             <div className="mt-3">
               <div className="flex items-center gap-2 text-xs">
                 <Sprout size={14} className="text-amber-600" />
-                <span className="text-gray-600 dark:text-gray-400">{t('dashboard.nextIrrigation')}: <span className="font-medium text-amber-700 dark:text-amber-400">{irrigationPlanData.nextIrrigation}</span></span>
+                <span className="text-gray-600 dark:text-gray-400">{t('dashboard.nextIrrigation')}: <span className="font-medium text-amber-700 dark:text-amber-400">{realIrrigationPlan.nextIrrigation}</span></span>
               </div>
               {currentProfile && (
                 <div className="text-xs text-gray-500 mt-1">
@@ -617,92 +695,10 @@ const Dashboard: React.FC = () => {
           location={userLocation || undefined}
         />
         
-        {/* Debug Component - Only shows in development */}
-        <FieldLocationDebug 
-          profiles={profiles}
-          selectedProfileIndex={selectedProfileIndex}
-          currentLocation={userLocation}
-        />
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-1 gap-4">
 
-          {/* Crop Suggestions Card */}
-          <motion.div 
-            className="bg-white rounded-2xl shadow-lg p-5 border border-green-100"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Target className="w-5 h-5 text-green-600" />
-                </div>
-                {t('dashboard.bestCropSuggestions')}
-              </h2>
-              <motion.button 
-                className="text-green-600 text-sm font-medium flex items-center gap-1 hover:text-green-700"
-                whileHover={{ x: 5 }}
-                onClick={() => setShowAIModal(true)}
-              >
-                AI Analysis <ChevronRight size={16} />
-              </motion.button>
-            </div>
-
-            {/* Crop Suggestion Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {cropSuggestions.slice(0, 3).map((crop, index) => {
-                const Icon = crop.icon;
-                return (
-                  <motion.div 
-                    key={index}
-                    className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200 hover:shadow-md transition-all cursor-pointer"
-                    whileHover={{ scale: 1.02 }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-14 h-14 bg-gradient-to-br ${crop.color} rounded-xl flex items-center justify-center shadow-md`}>
-                        <Icon className="text-white text-2xl" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-bold text-gray-800">{crop.name}</h3>
-                          <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">{t('dashboard.suitability')}</p>
-                              <p className="text-xl font-extrabold text-green-700">{crop.suitability}%</p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4 mt-2">
-                          <div className="flex items-center gap-1 text-xs text-gray-600">
-                            <Package size={12} />
-                            <span>{crop.yield}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                            <DollarSign size={12} />
-                            <span>{crop.profit}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-blue-600">
-                            <TrendingUp size={12} />
-                            <span>{crop.marketDemand} Demand</span>
-                          </div>
-                        </div>
-                        <div className="mt-2">
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`bg-gradient-to-r ${crop.color} h-2 rounded-full transition-all duration-500 shadow-inner`}
-                              style={{ width: `${crop.suitability}%` }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </motion.div>
         </div>
 
         {/* Crop-Specific Recommendations Section */}
@@ -808,368 +804,7 @@ const Dashboard: React.FC = () => {
           </motion.div>
         )}
 
-        {/* General Recommendations Section */}
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Sprout className="text-green-600" />
-            {t('suggestions.title')}
-          </h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Irrigation Schedule Card */}
-            <motion.div 
-              className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl shadow-lg p-4 border border-blue-200"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Droplets className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <h3 className="font-bold text-gray-800">Irrigation Schedule</h3>
-                </div>
-                <span className="text-xs px-2 py-1 bg-blue-200 text-blue-800 rounded-full font-medium">
-                  Optimized
-                </span>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Next Irrigation</span>
-                    <Calendar size={14} className="text-blue-500" />
-                  </div>
-                  <p className="text-lg font-bold text-blue-700">{irrigationPlanData.nextIrrigation}</p>
-                  <p className="text-xs text-gray-600 mt-1">Duration: {irrigationPlanData.duration}</p>
-                </div>
-                
-                <div className="bg-white/50 rounded-lg p-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Water Saved</span>
-                    <span className="font-bold text-green-600">{irrigationPlanData.waterSaved}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
-                    <div 
-                      className="bg-gradient-to-r from-blue-400 to-cyan-500 h-1.5 rounded-full"
-                      style={{ width: `${irrigationPlanData.waterSaved}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
 
-            {/* Fertilizer Plan Card */}
-            <motion.div 
-              className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-lg p-4 border border-green-200"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Leaf className="w-5 h-5 text-green-600" />
-                  </div>
-                  <h3 className="font-bold text-gray-800">Fertilizer Plan</h3>
-                </div>
-                <span className="text-xs px-2 py-1 bg-green-200 text-green-800 rounded-full font-medium">
-                  {fertilizerPlanData.currentPhase}
-                </span>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="bg-white/70 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Next Application</span>
-                    <Sprout size={14} className="text-green-500" />
-                  </div>
-                  <p className="text-lg font-bold text-green-700">{fertilizerPlanData.nextApplication}</p>
-                  <div className="grid grid-cols-3 gap-1 mt-2">
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">N</p>
-                      <p className="text-sm font-bold text-green-600">{fertilizerPlanData.currentNutrients.nitrogen}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">P</p>
-                      <p className="text-sm font-bold text-amber-600">{fertilizerPlanData.currentNutrients.phosphorus}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xs text-gray-500">K</p>
-                      <p className="text-sm font-bold text-blue-600">{fertilizerPlanData.currentNutrients.potassium}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-white/50 rounded-lg p-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Cost Savings</span>
-                    <span className="font-bold text-green-600">{fertilizerPlanData.costSavings.monthly}</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Pest Alert Card */}
-            <motion.div 
-              className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl shadow-lg p-4 border border-amber-200"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8 }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-amber-100 rounded-lg">
-                    <AlertCircle className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <h3 className="font-bold text-gray-800">{t('dashboard.pestControl')}</h3>
-                </div>
-                <span className="text-xs px-2 py-1 bg-amber-200 text-amber-800 rounded-full font-medium">
-                  {t('dashboard.lowRisk')}
-                </span>
-              </div>
-              
-              <div className="space-y-3">
-                <div className="bg-white/70 rounded-lg p-3">
-                  <p className="text-sm font-medium text-gray-700 mb-2">{t('dashboard.currentStatus')}</p>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <p className="text-sm text-gray-600">{t('dashboard.noThreatsDetected')}</p>
-                  </div>
-                </div>
-                
-                <div className="bg-white/50 rounded-lg p-2">
-                  <p className="text-xs text-amber-700 font-medium mb-1">{t('dashboard.preventiveAction')}</p>
-                  <p className="text-xs text-gray-600">{t('dashboard.neemSprayScheduled')}</p>
-                </div>
-                
-                <button className="w-full bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-medium py-2 rounded-lg transition-colors">
-                  {t('dashboard.viewPreventionTips')}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid lg:grid-cols-3 gap-4">
-          {/* Yield Trend Chart */}
-          <motion.div 
-            className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100 lg:col-span-2"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <TrendingUp className="text-green-600" />
-                {t('dashboard.yieldTrendAnalysis')}
-              </h2>
-              <select className="text-sm border border-gray-200 rounded-lg px-3 py-1 bg-white">
-                <option>{t('dashboard.lastSixMonths')}</option>
-                <option>{t('dashboard.lastYear')}</option>
-                <option>{t('dashboard.allTime')}</option>
-              </select>
-            </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={mockYieldTrends}>
-                <defs>
-                  <linearGradient id="colorYield" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
-                  </linearGradient>
-                  <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="month" 
-                  stroke="#6b7280" 
-                  fontSize={12}
-                />
-                <YAxis 
-                  stroke="#6b7280" 
-                  fontSize={12}
-                  label={{ value: t('dashboard.chartLabels.tonsPerHa'), angle: -90, position: 'insideLeft' }}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-                  }}
-                  formatter={(value: any, name: any) => [
-                    `${value} tons/ha`, 
-                    name === 'actual' ? t('dashboard.chartLabels.actualYield') : name === 'predicted' ? t('dashboard.chartLabels.aiPredicted') : t('dashboard.chartLabels.currentYield')
-                  ]}
-                />
-                <Legend 
-                  wrapperStyle={{
-                    paddingTop: '20px'
-                  }}
-                />
-                {mockYieldTrends[0].actual !== undefined && (
-                  <Line
-                    type="monotone"
-                    dataKey="actual"
-                    stroke="#10b981"
-                    strokeWidth={3}
-                    dot={{ fill: '#10b981', r: 4 }}
-                    name={t('dashboard.chartLabels.actualYield')}
-                    connectNulls={false}
-                  />
-                )}
-                <Line
-                  type="monotone"
-                  dataKey="predicted"
-                  stroke="#8b5cf6"
-                  strokeWidth={3}
-                  strokeDasharray="5 5"
-                  dot={{ fill: '#8b5cf6', r: 4 }}
-                  name={t('dashboard.chartLabels.aiPredicted')}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="yield"
-                  stroke="#f59e0b"
-                  strokeWidth={2}
-                  dot={{ fill: '#f59e0b', r: 3 }}
-                  name={t('dashboard.chartLabels.currentSeason')}
-                  fill="url(#colorYield)"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </motion.div>
-
-          {/* Soil Nutrients Chart */}
-          <motion.div 
-            className="bg-white rounded-2xl shadow-lg p-5 border border-gray-100"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.0 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Leaf className="text-green-600" />
-                {t('dashboard.soilNutrients')}
-              </h2>
-            </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={soilNutrientsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-                <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'ppm', angle: -90, position: 'insideLeft' }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px'
-                  }}
-                  formatter={(value: any, name: any) => [
-                    `${value} ppm`, 
-                    name === 'value' ? 'Current Level' : `Ideal for ${currentCrop?.crop_type || 'Crop'}`
-                  ]}
-                />
-                <Bar dataKey="value" name="Current" radius={[8, 8, 0, 0]}>
-                  {soilNutrientsData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-                <Bar dataKey="ideal" name="Ideal" fill="#e5e7eb" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {soilNutrientsData.map((nutrient, index) => {
-                const isDeficient = nutrient.value < nutrient.ideal * 0.8;
-                const isOptimal = nutrient.value >= nutrient.ideal * 0.8 && nutrient.value <= nutrient.ideal * 1.2;
-                return (
-                  <div key={index} className="text-center p-2 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-500">{nutrient.name}</p>
-                    <p className="text-sm font-bold" style={{ color: nutrient.color }}>
-                      {nutrient.value} ppm
-                    </p>
-                    <div className="mt-1">
-                      {isDeficient && (
-                        <span className="text-xs px-1 py-0.5 bg-red-100 text-red-600 rounded">Low</span>
-                      )}
-                      {isOptimal && (
-                        <span className="text-xs px-1 py-0.5 bg-green-100 text-green-600 rounded">Good</span>
-                      )}
-                      {!isDeficient && !isOptimal && (
-                        <span className="text-xs px-1 py-0.5 bg-yellow-100 text-yellow-600 rounded">High</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
-        </div>
-
-        {/* Market Price Trend */}
-        <motion.div 
-          className="bg-white rounded-2xl shadow-lg p-5 border border-purple-100"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1 }}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <DollarSign className="text-purple-600" />
-              {t('dashboard.marketPriceTrend')}
-            </h2>
-            <span className="text-sm text-green-600 font-medium flex items-center gap-1">
-              <TrendingUp size={16} />
-              +4.5% {t('dashboard.thisMonth')}
-            </span>
-          </div>
-          
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={marketPriceData}>
-              <defs>
-                <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="month" stroke="#6b7280" fontSize={12} />
-              <YAxis stroke="#6b7280" fontSize={12} />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: any) => [`₹${value}/quintal`, 'Price']}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="price" 
-                stroke="#8b5cf6" 
-                strokeWidth={3}
-                fill="url(#colorPrice)"
-                dot={{ fill: '#8b5cf6', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          
-          <div className="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-purple-900">{t('dashboard.bestSellingWindow')}</p>
-                <p className="text-xs text-purple-700 mt-1">{t('dashboard.expectedPrice')}</p>
-              </div>
-              <button className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors">
-                {t('dashboard.setAlert')}
-              </button>
-            </div>
-          </div>
-        </motion.div>
 
         {/* Yield Predictions for All Fields */}
         {profiles.length > 0 && (

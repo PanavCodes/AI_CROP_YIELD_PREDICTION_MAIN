@@ -67,9 +67,9 @@ const Signup: React.FC = () => {
             <GiWheat className="text-6xl text-leaf-green" />
           </div>
           <h2 className="text-3xl font-bold text-soil-dark mb-2">
-            {t('signup')}
+            Create Your Account
           </h2>
-          <p className="text-gray-600">{t('welcome')}</p>
+          <p className="text-gray-600">Join thousands of farmers using AI to improve their crops</p>
         </div>
 
         <div className="flex justify-center gap-2 mb-6">
@@ -104,15 +104,23 @@ const Signup: React.FC = () => {
           </div>
         )}
 
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-sm text-green-700 mb-1"><strong>{t('auth.newUserRegistration')}</strong></p>
-          <p className="text-xs text-green-600">{t('auth.afterSignupGuide')}</p>
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div className="flex items-center mb-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+            <p className="text-sm text-green-700 font-semibold">What happens after you sign up?</p>
+          </div>
+          <ul className="text-xs text-green-600 space-y-1 ml-4">
+            <li>✅ Instant access to your personalized dashboard</li>
+            <li>✅ Set up your farm profile and field information</li>
+            <li>✅ Get AI-powered crop recommendations</li>
+            <li>✅ Access weather insights and market prices</li>
+          </ul>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('auth.name')}
+              Full Name *
             </label>
             <div className="relative">
               <FiUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -122,7 +130,7 @@ const Signup: React.FC = () => {
                 value={formData.name}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder={t('auth.namePlaceholder')}
+                placeholder="Enter your full name"
                 required
               />
             </div>
@@ -130,7 +138,7 @@ const Signup: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('auth.email')}
+              Email Address *
             </label>
             <div className="relative">
               <FiMail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -140,7 +148,7 @@ const Signup: React.FC = () => {
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder={t('auth.signupEmailPlaceholder')}
+                placeholder="your@email.com"
                 required
               />
             </div>
@@ -148,7 +156,7 @@ const Signup: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('auth.phone')}
+              Phone Number *
             </label>
             <div className="relative">
               <FiPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -158,7 +166,7 @@ const Signup: React.FC = () => {
                 value={formData.phone}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder={t('auth.phonePlaceholder')}
+                placeholder="+91 98765 43210"
                 required
               />
             </div>
@@ -166,7 +174,7 @@ const Signup: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('auth.password')}
+              Create Password *
             </label>
             <div className="relative">
               <FiLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -176,15 +184,16 @@ const Signup: React.FC = () => {
                 value={formData.password}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder="••••••••"
+                placeholder="Create a secure password"
                 required
               />
             </div>
+            <p className="text-xs text-gray-500 mt-1">Choose a strong password with at least 6 characters</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('auth.location')}
+              Farm Location *
             </label>
             <div className="relative">
               <FiMapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -194,15 +203,16 @@ const Signup: React.FC = () => {
                 value={formData.location}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder={t('auth.locationPlaceholder')}
+                placeholder="e.g., Punjab, India or Village Name, District"
                 required
               />
             </div>
+            <p className="text-xs text-gray-500 mt-1">This helps us provide location-specific recommendations</p>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {t('auth.farmSize')}
+              Farm Size *
             </label>
             <div className="relative">
               <GiField className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -212,10 +222,11 @@ const Signup: React.FC = () => {
                 value={formData.farmSize}
                 onChange={handleChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                placeholder={t('auth.farmSizePlaceholder')}
+                placeholder="e.g., 5 hectares, 12 acres, 2 bighas"
                 required
               />
             </div>
+            <p className="text-xs text-gray-500 mt-1">Approximate size of your farming land</p>
           </div>
 
           <button
@@ -223,16 +234,21 @@ const Signup: React.FC = () => {
             disabled={loading}
             className="w-full bg-leaf-green text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {loading ? t('auth.creatingAccount') : t('signup')}
+            {loading ? 'Creating Your Account...' : 'Create Account & Get Started'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600">
-          {t('auth.haveAccount')}{' '}
-          <Link to="/login" className="text-leaf-green font-semibold hover:underline">
-            {t('login')}
-          </Link>
-        </p>
+        <div className="mt-6">
+          <p className="text-center text-xs text-gray-500 mb-3">
+            By creating an account, you agree to our Terms of Service and Privacy Policy
+          </p>
+          <p className="text-center text-sm text-gray-600">
+            Already have an account?{' '}
+            <Link to="/login" className="text-leaf-green font-semibold hover:underline">
+              Sign In
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

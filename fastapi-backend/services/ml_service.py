@@ -11,6 +11,7 @@ from typing import Dict, Any, List
 import logging
 from models.schemas import YieldPredictionRequest, YieldPredictionResponse
 from utils.config import get_settings
+from services.crop_recommendation_service import CropRecommendationService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ class MLService:
         self.crop_model = None
         self.crop_imputer = None
         self.is_initialized = False
+        
+        # Initialize AgriSens crop recommendation service
+        self.crop_recommendation_service = CropRecommendationService()
         
         # Model features as defined in Agrisense
         self.yield_features = ['Year', 'rainfall_mm', 'pesticides_tonnes', 'avg_temp', 'Area', 'Item']
@@ -68,11 +72,7 @@ class MLService:
                     crop_model_size = os.path.getsize(crop_model_path)
                     crop_imputer_size = os.path.getsize(crop_imputer_path)
                     
-                    if crop_model_size < 1000 or crop_imputer_size < 1000:
-                        logger.warning(f"⚠️ Crop model files appear corrupted (sizes: {crop_model_size}, {crop_imputer_size} bytes)")
-                        self.crop_model = None
-                        self.crop_imputer = None
-                    else:
+                    if crop_model_size > 0 and crop_imputer_size > 0:
                         self.crop_model = joblib.load(crop_model_path)
                         self.crop_imputer = joblib.load(crop_imputer_path)
                         logger.info("✅ Crop recommendation models loaded successfully")
@@ -95,6 +95,9 @@ class MLService:
             
             # Load real ML models
             self._load_models()
+            
+            # Initialize crop recommendation service
+            await self.crop_recommendation_service.initialize()
             
             self.is_initialized = True
             logger.info("✅ ML Service initialized successfully")
@@ -149,85 +152,20 @@ class MLService:
                            temperature: float, humidity: float, 
                            ph: float, rainfall: float) -> Dict[str, Any]:
         """
-        Recommend optimal crops based on soil and weather conditions
+        Recommend optimal crops based on soil and weather conditions using AgriSens model
         """
         try:
             if not self.is_initialized:
-                raise Exception("ML Service not initialized")
+                raise Exception("ML service not initialized")
             
-            # Mock crop recommendation logic
-            crops_data = [
-                {"crop": "Rice", "N_req": 80, "P_req": 40, "K_req": 40, "ph_range": [5.5, 7.0], "temp_range": [20, 35], "humidity_min": 75, "rainfall_min": 1000},
-                {"crop": "Wheat", "N_req": 50, "P_req": 30, "K_req": 30, "ph_range": [6.0, 7.5], "temp_range": [15, 25], "humidity_min": 50, "rainfall_min": 400},
-                {"crop": "Maize", "N_req": 70, "P_req": 35, "K_req": 35, "ph_range": [5.8, 7.0], "temp_range": [21, 30], "humidity_min": 60, "rainfall_min": 500},
-                {"crop": "Cotton", "N_req": 60, "P_req": 25, "K_req": 50, "ph_range": [5.8, 8.0], "temp_range": [21, 32], "humidity_min": 50, "rainfall_min": 400},
-                {"crop": "Soybean", "N_req": 20, "P_req": 30, "K_req": 100, "ph_range": [6.0, 7.0], "temp_range": [20, 30], "humidity_min": 70, "rainfall_min": 450}
-            ]
-            
-            recommendations = []
-            
-            for crop in crops_data:
-                score = 0
-                factors = {}
-                
-                # Soil nutrient matching
-                n_match = 1 - abs(N - crop["N_req"]) / max(N, crop["N_req"], 1)
-                p_match = 1 - abs(P - crop["P_req"]) / max(P, crop["P_req"], 1) 
-                k_match = 1 - abs(K - crop["K_req"]) / max(K, crop["K_req"], 1)
-                
-                # pH matching
-                if crop["ph_range"][0] <= ph <= crop["ph_range"][1]:
-                    ph_match = 1.0
-                else:
-                    ph_distance = min(abs(ph - crop["ph_range"][0]), abs(ph - crop["ph_range"][1]))
-                    ph_match = max(0, 1 - ph_distance / 2)
-                
-                # Temperature matching
-                if crop["temp_range"][0] <= temperature <= crop["temp_range"][1]:
-                    temp_match = 1.0
-                else:
-                    temp_distance = min(abs(temperature - crop["temp_range"][0]), abs(temperature - crop["temp_range"][1]))
-                    temp_match = max(0, 1 - temp_distance / 15)
-                
-                # Humidity and rainfall matching
-                humidity_match = 1.0 if humidity >= crop["humidity_min"] else humidity / crop["humidity_min"]
-                rainfall_match = 1.0 if rainfall >= crop["rainfall_min"] else rainfall / crop["rainfall_min"]
-                
-                # Calculate overall score
-                score = (n_match + p_match + k_match + ph_match + temp_match + humidity_match + rainfall_match) / 7
-                
-                recommendations.append({
-                    "crop": crop["crop"],
-                    "suitability_score": round(score, 3),
-                    "factors": {
-                        "nitrogen_match": round(n_match, 3),
-                        "phosphorus_match": round(p_match, 3),
-                        "potassium_match": round(k_match, 3),
-                        "ph_match": round(ph_match, 3),
-                        "temperature_match": round(temp_match, 3),
-                        "humidity_match": round(humidity_match, 3),
-                        "rainfall_match": round(rainfall_match, 3)
-                    }
-                })
-            
-            # Sort by suitability score
-            recommendations.sort(key=lambda x: x["suitability_score"], reverse=True)
-            
-            return {
-                "recommended_crops": recommendations[:3],  # Top 3 recommendations
-                "soil_analysis": {
-                    "nitrogen_level": "High" if N > 100 else "Medium" if N > 50 else "Low",
-                    "phosphorus_level": "High" if P > 50 else "Medium" if P > 25 else "Low", 
-                    "potassium_level": "High" if K > 150 else "Medium" if K > 75 else "Low",
-                    "ph_status": "Acidic" if ph < 6.5 else "Neutral" if ph < 7.5 else "Alkaline"
-                },
-                "weather_suitability": {
-                    "temperature_status": "Optimal" if 20 <= temperature <= 30 else "Sub-optimal",
-                    "humidity_status": "Good" if humidity > 60 else "Low",
-                    "rainfall_status": "Adequate" if rainfall > 500 else "Low"
-                },
-                "confidence_scores": {rec["crop"]: rec["suitability_score"] for rec in recommendations[:3]}
-            }
+            # Use the real AgriSens crop recommendation service
+            return await self.crop_recommendation_service.recommend_crop(
+                N=N, P=P, K=K,
+                temperature=temperature,
+                humidity=humidity,
+                ph=ph,
+                rainfall=rainfall
+            )
             
         except Exception as e:
             logger.error(f"Crop recommendation error: {str(e)}")

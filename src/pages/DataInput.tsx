@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { FiUpload, FiFile, FiCalendar, FiCheck, FiPlus } from 'react-icons/fi';
@@ -8,6 +8,7 @@ import { soilTypes, cropTypes, irrigationMethods } from '../mockData/mockData';
 import { getCurrentUser, updateUserFarmData, saveUserSession, isNewUser, updateUserLocation } from '../utils/userUtils';
 import locationService from '../services/locationService';
 import GoogleMapPicker from '../components/GoogleMapPicker';
+import FieldProfileManager from '../components/FieldProfileManager';
 import { Location } from '../types/weather';
 import { fetchAggregatedFieldData } from '../services/fieldDataService';
 import { reverseGeocodeBhuvan } from '../services/backendService';
@@ -17,17 +18,10 @@ import integratedLocationService, { FieldLocationData } from '../services/integr
 interface CropForm {
   crop_type: string;
   planting_date: string; // dd-mm-yyyy
-  season: 'Rabi' | 'Kharif' | 'Zaid' | 'Perennial' | ''; // crop season
-  cultivation_year: string; // year as string for form input
-  expected_yield: string; // expected yield in quintal
-  actual_yield: string; // actual yield in quintal (optional)
-  fertilizers_used: string; // comma-separated
-  pesticides_used: string; // comma-separated
-  previous_crop: string; // optional
-  soil_N: string; // optional numeric
-  soil_P: string; // optional numeric
-  soil_K: string; // optional numeric
-  soil_pH: string; // optional numeric
+  soil_N: string; // numeric
+  soil_P: string; // numeric
+  soil_K: string; // numeric
+  soil_pH: string; // numeric
   // Weather parameters
   temperature: string; // temperature in celsius
   humidity: string; // humidity in percentage
@@ -63,13 +57,6 @@ interface FieldProfileJSON {
     crops: Array<{
       crop_type: string;
       planting_date: string; // dd-mm-yyyy
-      season: 'Rabi' | 'Kharif' | 'Zaid' | 'Perennial';
-      cultivation_year: number;
-      expected_yield: number | null;
-      actual_yield: number | null;
-      fertilizers_used: string[];
-      pesticides_used: string[];
-      previous_crop: string | null;
       soil_test_results: null | { N: number | null; P: number | null; K: number | null; pH: number | null };
       weather_data: null | { temperature: number | null; humidity: number | null; rainfall: number | null };
     }>;
@@ -81,13 +68,6 @@ const IRRIGATION_AVAILABILITY: Array<'None' | 'Low' | 'Medium' | 'High'> = ['Non
 const defaultCrop = (): CropForm => ({
   crop_type: '',
   planting_date: '',
-  season: '',
-  cultivation_year: new Date().getFullYear().toString(),
-  expected_yield: '',
-  actual_yield: '',
-  fertilizers_used: '',
-  pesticides_used: '',
-  previous_crop: '',
   soil_N: '',
   soil_P: '',
   soil_K: '',
@@ -103,7 +83,7 @@ const defaultFieldForm: FieldForm = {
   soil_type: '',
   irrigation_method: '',
   irrigation_availability: '',
-  crops: [defaultCrop()],
+  crops: [defaultCrop()], // Always exactly one crop per field
 };
 
 const DataInput: React.FC = () => {
@@ -126,8 +106,7 @@ const DataInput: React.FC = () => {
     }
   });
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [fields, setFields] = useState<FieldForm[]>([defaultFieldForm]);
-  const [currentFieldIndex, setCurrentFieldIndex] = useState(0);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [form, setForm] = useState<FieldForm>(defaultFieldForm);
   const [errors, setErrors] = useState<string[]>([]);
   const [detectingLocation, setDetectingLocation] = useState(false);
@@ -154,12 +133,6 @@ const DataInput: React.FC = () => {
     return sessionStorage.getItem('cropDataFetched') === 'true';
   });
 
-  // Update form when currentFieldIndex changes
-  useEffect(() => {
-    if (fields[currentFieldIndex]) {
-      setForm(fields[currentFieldIndex]);
-    }
-  }, [currentFieldIndex, fields]);
   
   // Load location from profile when editing
   useEffect(() => {
@@ -185,14 +158,6 @@ const DataInput: React.FC = () => {
     }
   }, [editingIndex, profiles]);
 
-  // Update fields array when form changes
-  useEffect(() => {
-    setFields(prev => {
-      const updated = [...prev];
-      updated[currentFieldIndex] = form;
-      return updated;
-    });
-  }, [form, currentFieldIndex]);
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -256,43 +221,37 @@ const DataInput: React.FC = () => {
     }
   };
 
-  const setField = (name: keyof FieldForm, value: any) => {
-    setForm(prev => ({ ...prev, [name]: value }));
-  };
+  const setField = useCallback((name: keyof FieldForm, value: any) => {
+    // Prevent unnecessary re-renders and glitching
+    setForm(prev => {
+      if (prev[name] !== value) {
+        return { ...prev, [name]: value };
+      }
+      return prev;
+    });
+  }, []);
 
-  const setCropField = (index: number, name: keyof CropForm, value: any) => {
+  const setCropField = useCallback((index: number, name: keyof CropForm, value: any) => {
+    // Prevent unnecessary re-renders and glitching
     setForm(prev => {
       const updated = [...prev.crops];
-      updated[index] = { ...updated[index], [name]: value };
-      return { ...prev, crops: updated };
+      if (updated[index] && updated[index][name] !== value) {
+        updated[index] = { ...updated[index], [name]: value };
+        return { ...prev, crops: updated };
+      }
+      return prev;
     });
-  };
+  }, []);
 
-  const addField = () => {
-    const newField = {
-      ...defaultFieldForm,
-      field_name: `Field ${fields.length + 1}`,
-      crops: [defaultCrop()]
-    };
-    setFields(prev => [...prev, newField]);
-  };
   
-  const removeField = (index: number) => {
-    setFields(prev => prev.filter((_, i) => i !== index));
-    if (currentFieldIndex >= fields.length - 1) {
-      setCurrentFieldIndex(Math.max(0, fields.length - 2));
-    }
-  };
-  
-  const addCrop = () => setForm(prev => ({ ...prev, crops: [...prev.crops, defaultCrop()] }));
-  const removeCrop = (index: number) => setForm(prev => ({ ...prev, crops: prev.crops.filter((_, i) => i !== index) }));
+  // Removed addCrop and removeCrop functions - using single crop per field for better UX
 
   // Validation helpers
   const isPositiveNumber = (s: string) => {
     const n = Number(s);
     return Number.isFinite(n) && n > 0;
   };
-  const isOptionalNumber = (s: string) => s === '' || /^\d+(\.\d+)?$/.test(s);
+  const isNumericOrEmpty = (s: string) => s === '' || /^\d+(\.\d+)?$/.test(s);
   const isValidDateDDMMYYYY = (s: string) => /^([0-2]\d|3[01])-(0\d|1[0-2])-\d{4}$/.test(s);
 
   const buildJSON = (f: FieldForm): FieldProfileJSON => {
@@ -314,26 +273,11 @@ const DataInput: React.FC = () => {
           availability: (f.irrigation_availability || 'Low') as 'None' | 'Low' | 'Medium' | 'High',
         },
         crops: f.crops.map(c => {
-          const ferts = c.fertilizers_used
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean);
-          const pests = c.pesticides_used
-            .split(',')
-            .map(s => s.trim())
-            .filter(Boolean);
           const soilProvided = c.soil_N || c.soil_P || c.soil_K || c.soil_pH;
           const weatherProvided = c.temperature || c.humidity || c.rainfall;
           return {
             crop_type: c.crop_type.trim(),
             planting_date: c.planting_date.trim(),
-            season: (c.season || 'Rabi') as 'Rabi' | 'Kharif' | 'Zaid' | 'Perennial',
-            cultivation_year: Number(c.cultivation_year) || new Date().getFullYear(),
-            expected_yield: c.expected_yield ? Number(c.expected_yield) : null,
-            actual_yield: c.actual_yield ? Number(c.actual_yield) : null,
-            fertilizers_used: ferts,
-            pesticides_used: pests,
-            previous_crop: c.previous_crop.trim() ? c.previous_crop.trim() : null,
             soil_test_results: soilProvided
               ? {
                   N: c.soil_N ? Number(c.soil_N) : null,
@@ -357,81 +301,81 @@ const DataInput: React.FC = () => {
 
   const validateForm = (f: FieldForm): string[] => {
     const errs: string[] = [];
-    if (!f.field_name.trim()) errs.push('Field name/ID is required.');
+    if (!f.field_name.trim()) errs.push('Please enter field name/ID.');
     if (!isPositiveNumber(f.field_size_hectares)) errs.push('Field size (hectares) must be a number > 0.');
-    if (!f.soil_type) errs.push('Soil type is required.');
-    if (!f.irrigation_method) errs.push('Irrigation method is required.');
-    if (!f.irrigation_availability) errs.push('Irrigation availability is required.');
-    if (!f.crops.length) errs.push('At least one crop is required.');
+    if (!f.soil_type) errs.push('Please select soil type.');
+    if (!f.irrigation_method) errs.push('Please select irrigation method.');
+    if (!f.irrigation_availability) errs.push('Please select irrigation availability.');
+    if (!f.crops.length) errs.push('Please enter crop information.');
 
-    f.crops.forEach((c, i) => {
-      if (!c.crop_type.trim()) errs.push(`Crop ${i + 1}: crop type is required.`);
-      if (!isValidDateDDMMYYYY(c.planting_date.trim())) errs.push(`Crop ${i + 1}: planting date must be dd-mm-yyyy.`);
-      if (!c.season) errs.push(`Crop ${i + 1}: season is required.`);
-      if (!c.cultivation_year || !Number.isInteger(Number(c.cultivation_year))) errs.push(`Crop ${i + 1}: cultivation year must be a valid year.`);
-      if (!isOptionalNumber(c.soil_N)) errs.push(`Crop ${i + 1}: N must be numeric.`);
-      if (!isOptionalNumber(c.soil_P)) errs.push(`Crop ${i + 1}: P must be numeric.`);
-      if (!isOptionalNumber(c.soil_K)) errs.push(`Crop ${i + 1}: K must be numeric.`);
-      if (!isOptionalNumber(c.soil_pH)) errs.push(`Crop ${i + 1}: pH must be numeric.`);
-      if (!isOptionalNumber(c.expected_yield)) errs.push(`Crop ${i + 1}: expected yield must be numeric.`);
-      if (!isOptionalNumber(c.actual_yield)) errs.push(`Crop ${i + 1}: actual yield must be numeric.`);
-      if (!isOptionalNumber(c.temperature)) errs.push(`Crop ${i + 1}: temperature must be numeric.`);
-      if (c.humidity && (Number(c.humidity) < 0 || Number(c.humidity) > 100)) errs.push(`Crop ${i + 1}: humidity must be between 0-100.`);
-      if (!isOptionalNumber(c.rainfall)) errs.push(`Crop ${i + 1}: rainfall must be numeric.`);
-    });
+    // Validate only the first crop (since we're using single crop per field)
+    const c = f.crops[0];
+    if (c) {
+      if (!c.crop_type.trim()) errs.push('Please enter crop type.');
+      if (!isValidDateDDMMYYYY(c.planting_date.trim())) errs.push('Planting date must be dd-mm-yyyy.');
+      if (!isNumericOrEmpty(c.soil_N)) errs.push('Nitrogen (N) must be numeric.');
+      if (!isNumericOrEmpty(c.soil_P)) errs.push('Phosphorus (P) must be numeric.');
+      if (!isNumericOrEmpty(c.soil_K)) errs.push('Potassium (K) must be numeric.');
+      if (!isNumericOrEmpty(c.soil_pH)) errs.push('pH must be numeric.');
+      if (!isNumericOrEmpty(c.temperature)) errs.push('Temperature must be numeric.');
+      if (c.humidity && (Number(c.humidity) < 0 || Number(c.humidity) > 100)) errs.push('Humidity must be between 0-100.');
+      if (!isNumericOrEmpty(c.rainfall)) errs.push('Rainfall must be numeric.');
+    }
 
     return errs;
   };
 
   const resetForm = () => {
-    setFields([defaultFieldForm]);
-    setCurrentFieldIndex(0);
-    setForm(defaultFieldForm);
+    setForm({ ...defaultFieldForm });
     setEditingIndex(null);
     setErrors([]);
+    setSelectedLocation(null);
+    setAutofillInfo(null);
+    setAdminInfo(null);
+    setIntegratedFieldData(null);
+    console.log('Form reset to create new profile');
   };
 
   const saveProfilesToStorage = (list: FieldProfileJSON[]) => {
-    localStorage.setItem('fieldProfiles', JSON.stringify(list));
-    setProfiles(list);
+    try {
+      console.log('Saving profiles to localStorage:', list);
+      localStorage.setItem('fieldProfiles', JSON.stringify(list));
+      setProfiles(list);
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('profilesUpdated'));
+      console.log('Profiles saved successfully and event dispatched');
+    } catch (error) {
+      console.error('Error saving profiles to localStorage:', error);
+      setErrors(['Failed to save profile. Local storage may be full.']);
+    }
   };
 
   const handleSubmitManual = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Validate all fields
-    const allErrors: string[] = [];
-    fields.forEach((field, idx) => {
-      const fieldErrors = validateForm(field).map(err => `Field ${idx + 1}: ${err}`);
-      allErrors.push(...fieldErrors);
-    });
+    // Validate the form
+    const formErrors = validateForm(form);
     
-    if (allErrors.length) {
-      setErrors(allErrors);
+    if (formErrors.length) {
+      setErrors(formErrors);
       setIsSubmitting(false);
       return;
     }
 
     try {
-      // Save all fields as separate profiles
-      const newProfiles = fields.map(field => {
-        const profile = buildJSON(field);
-        console.log('Saving profile with location:', profile.field_profile.location);
-        return profile;
-      });
+      // Build the profile JSON
+      const profile = buildJSON(form);
+      console.log('Saving profile with location:', profile.field_profile.location);
+      
       const next = [...profiles];
       
       if (editingIndex !== null) {
-        // If editing, replace the single profile
-        next[editingIndex] = newProfiles[0];
-        // Add any additional fields as new profiles
-        if (newProfiles.length > 1) {
-          next.push(...newProfiles.slice(1));
-        }
+        // If editing, replace the existing profile
+        next[editingIndex] = profile;
       } else {
-        // Add all new profiles
-        next.push(...newProfiles);
+        // Add new profile
+        next.push(profile);
       }
       
       saveProfilesToStorage(next);
@@ -444,7 +388,52 @@ const DataInput: React.FC = () => {
         setCurrentUser(updatedUser);
       }
 
-      // Navigate to dashboard like before
+      // Get the crop data for yield prediction
+      const firstCrop = form.crops[0];
+      
+      // Show success message and navigation options
+      const hasWeatherData = firstCrop && firstCrop.crop_type && firstCrop.temperature && firstCrop.rainfall;
+      
+      // Show confirmation dialog with navigation options
+      const navigateToYieldPrediction = () => {
+        navigate('/yield-prediction');
+      };
+      
+      const navigateToDashboard = () => {
+        navigate('/dashboard');
+      };
+      
+      // For now, just navigate to dashboard - user can choose yield prediction from there
+      console.log('Profile saved successfully, redirecting to dashboard');
+      
+      // Add a small delay to show the save was successful
+      setTimeout(() => {
+        if (hasWeatherData) {
+          // If we have weather data, offer yield prediction as primary option
+          const confirmed = window.confirm(
+            `Field profile saved successfully!\n\n` +
+            `Would you like to see AI yield predictions for your field profile?\n\n` +
+            `Click OK for Yield Predictions or Cancel for Dashboard.`
+          );
+          if (confirmed) {
+            navigate('/yield-prediction');
+          } else {
+            navigate('/dashboard');
+          }
+        } else {
+          // If no weather data, suggest dashboard
+          const confirmed = window.confirm(
+            `Field profile saved successfully!\n\n` +
+            `To get yield predictions, add weather data (temperature and rainfall).\n\n` +
+            `Click OK to go to Dashboard or Cancel to add more data.`
+          );
+          if (confirmed) {
+            navigate('/dashboard');
+          }
+          // If cancelled, stay on current page to add more data
+        }
+      }, 1000);
+      
       navigate('/dashboard');
     } catch (error) {
       console.error('Error saving field profiles:', error);
@@ -561,8 +550,22 @@ const DataInput: React.FC = () => {
   };
 
   const loadProfileIntoForm = (index: number) => {
+    if (index < 0 || index >= profiles.length) {
+      console.warn('Invalid profile index for loading:', index);
+      return;
+    }
+    
     const p = profiles[index];
-    if (!p) return;
+    if (!p || !p.field_profile) {
+      console.warn('Invalid profile structure at index:', index);
+      return;
+    }
+    
+    console.log('Loading profile into form:', p.field_profile.field_name);
+    
+    // Clear any existing errors first
+    setErrors([]);
+    
     setEditingIndex(index);
     const f = p.field_profile;
     const fieldForm = {
@@ -574,13 +577,6 @@ const DataInput: React.FC = () => {
       crops: f.crops.map(c => ({
         crop_type: c.crop_type,
         planting_date: c.planting_date,
-        season: (c as any).season || '',
-        cultivation_year: (c as any).cultivation_year ? String((c as any).cultivation_year) : new Date().getFullYear().toString(),
-        expected_yield: (c as any).expected_yield != null ? String((c as any).expected_yield) : '',
-        actual_yield: (c as any).actual_yield != null ? String((c as any).actual_yield) : '',
-        fertilizers_used: c.fertilizers_used.join(', '),
-        pesticides_used: c.pesticides_used.join(', '),
-        previous_crop: c.previous_crop ?? '',
         soil_N: c.soil_test_results?.N != null ? String(c.soil_test_results.N) : '',
         soil_P: c.soil_test_results?.P != null ? String(c.soil_test_results.P) : '',
         soil_K: c.soil_test_results?.K != null ? String(c.soil_test_results.K) : '',
@@ -590,18 +586,101 @@ const DataInput: React.FC = () => {
         rainfall: (c as any).weather_data?.rainfall != null ? String((c as any).weather_data.rainfall) : '',
       })),
     };
-    setFields([fieldForm]);
-    setCurrentFieldIndex(0);
+    
+    // Update the form state
     setForm(fieldForm);
     setActiveTab('manual');
+    
+    // Load location data if available (this will trigger useEffect)
+    console.log('Profile loaded successfully for editing');
   };
 
   const deleteProfile = (index: number) => {
+    if (index < 0 || index >= profiles.length) {
+      console.warn('Invalid profile index for deletion:', index);
+      return;
+    }
+    
+    console.log('Deleting profile at index:', index);
     const next = profiles.filter((_, i) => i !== index);
     saveProfilesToStorage(next);
+    
+    // If we're currently editing the deleted profile, reset the form
     if (editingIndex === index) {
       resetForm();
+    } else if (editingIndex !== null && editingIndex > index) {
+      // Adjust editing index if it's after the deleted profile
+      setEditingIndex(editingIndex - 1);
     }
+    
+  };
+
+  // New profile management functions for FieldProfileManager
+  const handleProfileEdit = (index: number) => {
+    console.log('Editing profile at index:', index);
+    loadProfileIntoForm(index);
+  };
+
+  const handleNewProfile = () => {
+    console.log('Creating new profile');
+    resetForm();
+  };
+
+  const handleSaveProfile = async (customName?: string) => {
+    setIsSavingProfile(true);
+    
+    try {
+      // Validate the current form
+      const formErrors = validateForm(form);
+      if (formErrors.length > 0) {
+        setErrors(formErrors);
+        return;
+      }
+      
+      // Build the profile JSON
+      let profile = buildJSON(form);
+      
+      // Use custom name if provided
+      if (customName) {
+        profile.field_profile.field_name = customName;
+      }
+      
+      console.log('Saving profile:', profile.field_profile.field_name);
+      
+      const updatedProfiles = [...profiles];
+      
+      if (editingIndex !== null) {
+        // Update existing profile
+        updatedProfiles[editingIndex] = profile;
+      } else {
+        // Add as new profile
+        updatedProfiles.push(profile);
+        setEditingIndex(updatedProfiles.length - 1);
+      }
+      
+      saveProfilesToStorage(updatedProfiles);
+      setErrors([]); // Clear any validation errors
+      
+      // Show success feedback
+      console.log('Profile saved successfully');
+      
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setErrors(['Failed to save profile. Please try again.']);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const canSaveProfile = () => {
+    // Can save if form has required fields filled
+    return form.field_name.trim() && 
+           form.field_size_hectares && 
+           form.soil_type && 
+           form.irrigation_method && 
+           form.irrigation_availability &&
+           form.crops.length > 0 &&
+           form.crops[0].crop_type.trim();
   };
 
   // Auto-detect location function
@@ -786,42 +865,7 @@ const DataInput: React.FC = () => {
     setIntegratedFieldData(fieldData);
   };
   
-  const handlePredictYield = () => {
-    // Validate that we have the minimum required data
-    if (!form.crops.length || !form.crops[0].crop_type) {
-      setErrors(['Please add at least one crop with crop type to predict yield.']);
-      return;
-    }
-    
-    const firstCrop = form.crops[0];
-    
-    // Check for required fields
-    if (!firstCrop.crop_type || !firstCrop.temperature || !firstCrop.rainfall) {
-      setErrors(['Please provide crop type, temperature, and rainfall data for yield prediction.']);
-      return;
-    }
-    
-    // Prepare data for yield prediction
-    const predictionData = {
-      crop: firstCrop.crop_type,
-      state: adminInfo?.state || selectedLocation?.state || form.field_name.split(' ')[0] || 'Unknown',
-      rainfall: parseFloat(firstCrop.rainfall) || 0,
-      temperature: parseFloat(firstCrop.temperature) || 0,
-      area: parseFloat(form.field_size_hectares) || 1.0,
-      pesticides: 0.0, // Default value, could be enhanced later
-      year: parseInt(firstCrop.cultivation_year) || new Date().getFullYear()
-    };
-    
-    console.log('Navigating to yield prediction with data:', predictionData);
-    
-    // Navigate to yield prediction page with data
-    navigate('/yield-prediction', { 
-      state: { 
-        predictionData,
-        sourceField: form.field_name || 'My Field'
-      } 
-    });
-  };
+  // handlePredictYield function removed - now only accessible after saving data
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 transition-colors duration-200">
@@ -1015,43 +1059,18 @@ const DataInput: React.FC = () => {
               )}
             </div>
 
-            {/* Saved profiles management */}
-            <div className="mb-6 bg-gray-50 border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-gray-800">{t('dataInput.savedFieldProfiles')}</h2>
-                <button onClick={resetForm} className="text-sm text-leaf-green hover:underline">{t('dataInput.newProfile')}</button>
-              </div>
-              {profiles.length === 0 ? (
-                <p className="text-sm text-gray-600">{t('dataInput.noProfilesSaved')}</p>
-              ) : (
-                <div className="space-y-2">
-                  {profiles.map((p, idx) => (
-                    <div key={idx} className="flex items-center justify-between bg-white border rounded-lg p-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{p.field_profile.field_name}</p>
-                        <p className="text-xs text-gray-500">{p.field_profile.crops.length} crop(s) • {p.field_profile.soil_type}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => loadProfileIntoForm(idx)}
-                          className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-                        >
-                          {t('dataInput.edit')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteProfile(idx)}
-                          className="px-3 py-1.5 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded flex items-center gap-1"
-                        >
-                          <Trash2 /> {t('dataInput.delete')}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Field Profile Manager */}
+            <FieldProfileManager
+              profiles={profiles}
+              currentProfileIndex={editingIndex}
+              isEditing={editingIndex !== null}
+              onProfileEdit={handleProfileEdit}
+              onProfileDelete={deleteProfile}
+              onNewProfile={handleNewProfile}
+              onSaveProfile={handleSaveProfile}
+              canSave={canSaveProfile()}
+              isSaving={isSavingProfile}
+            />
 
             {/* Tabs */}
             <div className="flex gap-4 mb-6 border-b">
@@ -1081,18 +1100,41 @@ const DataInput: React.FC = () => {
               <form onSubmit={handleSubmitManual} className="space-y-6">
                 {errors.length > 0 && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <ul className="list-disc list-inside text-sm text-red-700">
-                      {errors.map((e, i) => (
-                        <li key={i}>{e}</li>
-                      ))}
-                    </ul>
+                    <div className="flex items-start gap-2">
+                      <div className="w-5 h-5 bg-red-100 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-red-600 text-sm font-bold">!</span>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-red-800 mb-2">Please fix the following issues:</h4>
+                        <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                          {errors.map((e, i) => (
+                            <li key={i}>{e}</li>
+                          ))}
+                        </ul>
+                        {errors.some(e => e.includes('temperature') || e.includes('rainfall') || e.includes('crop type')) && (
+                          <p className="text-xs text-red-600 mt-2">
+                            💡 <strong>Note:</strong> Crop type, temperature, and rainfall are needed for AI yield predictions.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
+
+                {/* Field Information Section */}
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-800">Field Information</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {editingIndex !== null ? 'Edit your field profile details below' : 'Enter your field details to create a new profile'}
+                  </p>
+                </div>
 
                 {/* Field details */}
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.fieldName')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('dataInput.fieldName')}
+                    </label>
                     <div className="relative">
                       <input
                         type="text"
@@ -1100,7 +1142,6 @@ const DataInput: React.FC = () => {
                         onChange={(e) => setField('field_name', e.target.value)}
                         className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
                         placeholder={t('dataInput.fieldNamePlaceholder')}
-                        required
                       />
                       <button
                         type="button"
@@ -1122,7 +1163,9 @@ const DataInput: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.fieldSize')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('dataInput.fieldSize')}
+                    </label>
                     <input
                       type="number"
                       min={0}
@@ -1131,17 +1174,17 @@ const DataInput: React.FC = () => {
                       onChange={(e) => setField('field_size_hectares', e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
                       placeholder={t('dataInput.fieldSizePlaceholder')}
-                      required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.soilType')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('dataInput.soilType')}
+                    </label>
                     <select
                       value={form.soil_type}
                       onChange={(e) => setField('soil_type', e.target.value)}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                      required
                     >
                       <option value="">{t('dataInput.selectSoilType')}</option>
                       {soilTypes.map(type => (
@@ -1151,14 +1194,15 @@ const DataInput: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.irrigationMethod')}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {t('dataInput.irrigationMethod')}
+                    </label>
                     <div className="relative">
                       <GiWateringCan className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                       <select
                         value={form.irrigation_method}
                         onChange={(e) => setField('irrigation_method', e.target.value)}
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                        required
                       >
                         <option value="">{t('dataInput.selectMethod')}</option>
                         {irrigationMethods.map(method => (
@@ -1174,7 +1218,6 @@ const DataInput: React.FC = () => {
                       value={form.irrigation_availability}
                       onChange={(e) => setField('irrigation_availability', e.target.value as FieldForm['irrigation_availability'])}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                      required
                     >
                       <option value="">{t('dataInput.selectAvailability')}</option>
                       {IRRIGATION_AVAILABILITY.map(a => (
@@ -1184,88 +1227,26 @@ const DataInput: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Fields list */}
+                {/* Crop Information Section - Moved up */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-800">{t('dataInput.fieldManagement')}</h3>
-                    <button
-                      type="button"
-                      onClick={addField}
-                      className="flex items-center gap-2 px-3 py-2 bg-leaf-green text-white rounded hover:bg-green-700"
-                    >
-                      <FiPlus /> {t('dataInput.addField')}
-                    </button>
+                    <h3 className="text-lg font-semibold text-gray-800">Crop Information</h3>
+                    <span className="text-sm text-gray-500">One crop per field for accurate AI predictions</span>
                   </div>
 
-                  {/* Field tabs */}
-                  {fields.length > 1 && (
-                    <div className="flex gap-2 mb-4 overflow-x-auto">
-                      {fields.map((field, idx) => (
-                        <div key={idx} className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setCurrentFieldIndex(idx)}
-                            className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
-                              currentFieldIndex === idx
-                                ? 'bg-leaf-green text-white'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            {field.field_name || `Field ${idx + 1}`}
-                          </button>
-                          {fields.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeField(idx)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                              title={t('dataInput.removeFieldTitle')}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                    <p className="text-sm text-blue-800">
-                      <strong>{t('dataInput.currentField')}:</strong> {form.field_name || `${t('dataInput.crop')} ${currentFieldIndex + 1}`} 
-                      {fields.length > 1 && `(${currentFieldIndex + 1} of ${fields.length})`}
-                    </p>
-                  </div>
-
-                  {/* Crops for current field */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-md font-semibold text-gray-800">{t('dataInput.cropsForThisField')}</h4>
-                      <button
-                        type="button"
-                        onClick={addCrop}
-                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                      >
-                        <FiPlus /> {t('dataInput.addCrop')}
-                      </button>
-                    </div>
-
-                  {form.crops.map((c, idx) => (
+                  {/* Display only the first crop (simplified) */}
+                  {form.crops.slice(0, 1).map((c, idx) => (
                     <div key={idx} className="border rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-gray-700">{t('dataInput.crop')} {idx + 1}</h4>
-                        {form.crops.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeCrop(idx)}
-                            className="text-sm text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded flex items-center gap-1"
-                          >
-                            <Trash2 /> {t('dataInput.removeCrop')}
-                          </button>
-                        )}
+                      <div className="flex items-center mb-3">
+                        <h4 className="font-semibold text-gray-700">Crop Details</h4>
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.cropType')}</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {t('dataInput.cropType')}
+                          </label>
                           <input
                             type="text"
                             list="cropOptions"
@@ -1273,7 +1254,6 @@ const DataInput: React.FC = () => {
                             onChange={(e) => setCropField(idx, 'crop_type', e.target.value)}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
                             placeholder={t('dataInput.cropTypePlaceholder')}
-                            required
                           />
                           <datalist id="cropOptions">
                             {cropTypes.map(option => (
@@ -1283,7 +1263,9 @@ const DataInput: React.FC = () => {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.plantingDateLabel')}</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {t('dataInput.plantingDateLabel')}
+                          </label>
                           <div className="relative">
                             <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                             <input
@@ -1292,106 +1274,20 @@ const DataInput: React.FC = () => {
                               onChange={(e) => setCropField(idx, 'planting_date', e.target.value)}
                               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
                               placeholder={t('dataInput.plantingDatePlaceholder')}
-                              required
                             />
                           </div>
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Season</label>
-                          <select
-                            value={c.season}
-                            onChange={(e) => setCropField(idx, 'season', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            required
-                          >
-                            <option value="">Select Season</option>
-                            <option value="Rabi">Rabi (Winter)</option>
-                            <option value="Kharif">Kharif (Monsoon)</option>
-                            <option value="Zaid">Zaid (Summer)</option>
-                            <option value="Perennial">Perennial (Year-round)</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Cultivation Year</label>
-                          <input
-                            type="number"
-                            min="2020"
-                            max="2030"
-                            value={c.cultivation_year}
-                            onChange={(e) => setCropField(idx, 'cultivation_year', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            placeholder="e.g., 2024"
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.fertilizersUsedLabel')}</label>
-                          <input
-                            type="text"
-                            value={c.fertilizers_used}
-                            onChange={(e) => setCropField(idx, 'fertilizers_used', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            placeholder={t('dataInput.fertilizerPlaceholder')}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.pesticidesUsedLabel')}</label>
-                          <input
-                            type="text"
-                            value={c.pesticides_used}
-                            onChange={(e) => setCropField(idx, 'pesticides_used', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            placeholder={t('dataInput.pesticidePlaceholder')}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('dataInput.previousCropLabel')}</label>
-                          <input
-                            type="text"
-                            value={c.previous_crop}
-                            onChange={(e) => setCropField(idx, 'previous_crop', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            placeholder={t('dataInput.previousCropPlaceholder')}
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Expected Yield (Quintal)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={c.expected_yield}
-                            onChange={(e) => setCropField(idx, 'expected_yield', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            placeholder="e.g., 25.5"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Actual Yield (Quintal) <span className="text-gray-500 text-xs">- Optional</span></label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            value={c.actual_yield}
-                            onChange={(e) => setCropField(idx, 'actual_yield', e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-leaf-green focus:border-transparent"
-                            placeholder="e.g., 23.2"
-                          />
-                        </div>
-
                         {/* Soil Test Results */}
                         <div className="col-span-2">
-                          <h5 className="text-sm font-medium text-gray-700 mb-2">Soil Test Results (Optional)</h5>
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">
+                            Soil Test Results
+                          </h5>
                           <div className="grid grid-cols-4 gap-2">
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">N</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                N
+                              </label>
                               <input
                                 type="text"
                                 value={c.soil_N}
@@ -1401,7 +1297,9 @@ const DataInput: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">P</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                P
+                              </label>
                               <input
                                 type="text"
                                 value={c.soil_P}
@@ -1411,7 +1309,9 @@ const DataInput: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">K</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                K
+                              </label>
                               <input
                                 type="text"
                                 value={c.soil_K}
@@ -1421,7 +1321,9 @@ const DataInput: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">pH</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                pH
+                              </label>
                               <input
                                 type="text"
                                 value={c.soil_pH}
@@ -1435,10 +1337,14 @@ const DataInput: React.FC = () => {
 
                         {/* Weather Parameters */}
                         <div className="col-span-2">
-                          <h5 className="text-sm font-medium text-gray-700 mb-2">Weather Data (Optional)</h5>
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">
+                            Weather Data
+                          </h5>
                           <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Temp (°C)</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Temp (°C)
+                              </label>
                               <input
                                 type="number"
                                 step="0.1"
@@ -1449,7 +1355,9 @@ const DataInput: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Humidity (%)</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Humidity (%)
+                              </label>
                               <input
                                 type="number"
                                 min="0"
@@ -1461,7 +1369,9 @@ const DataInput: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Rainfall (mm)</label>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Rainfall (mm)
+                              </label>
                               <input
                                 type="number"
                                 min="0"
@@ -1477,37 +1387,47 @@ const DataInput: React.FC = () => {
                       </div>
                     </div>
                   ))}
-                  </div>
                 </div>
 
-                <div className="flex gap-4 pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex-1 bg-leaf-green text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    <Save /> {editingIndex !== null ? t('dataInput.updateFieldsContinue') : t('dataInput.saveFieldsContinue')}
-                  </button>
+                <div className="flex flex-col gap-4 pt-2">
+                  {/* Info message about what happens after saving */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <TrendingUp className="w-4 h-4" />
+                      <span className="text-sm font-medium">
+                        💡 After saving your field data, you'll be automatically taken to the Yield Prediction page to get AI-powered crop yield forecasts.
+                      </span>
+                    </div>
+                  </div>
                   
-                  {/* New Predict Yield Button */}
-                  <button
-                    type="button"
-                    onClick={() => handlePredictYield()}
-                    disabled={isSubmitting || !form.crops.length || !form.crops[0].crop_type}
-                    className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    <TrendingUp className="w-4 h-4" /> Predict Yield
-                  </button>
-                  
-                  {!showNewUserMessage && (
+                  <div className="flex gap-4">
                     <button
-                      type="button"
-                      onClick={() => navigate('/dashboard')}
-                      className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 bg-leaf-green text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
-                      {t('cancel')}
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save /> {editingIndex !== null ? 'Update & Get Yield Prediction' : 'Save & Get Yield Prediction'}
+                        </>
+                      )}
                     </button>
-                  )}
+                    
+                    {!showNewUserMessage && (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/dashboard')}
+                        className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
               </form>
             ) : (

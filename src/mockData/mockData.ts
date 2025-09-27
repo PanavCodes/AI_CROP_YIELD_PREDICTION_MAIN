@@ -277,3 +277,336 @@ export const mockUserProfiles = {
     farmingMethod: "Traditional"
   }
 };
+
+// Enhanced Market Insights Data
+export const mockMarketData = {
+  currentPrices: [
+    { 
+      commodity: "Wheat", 
+      price: 2250, 
+      unit: "₹/quintal", 
+      change: "+50", 
+      changePercent: "+2.3%", 
+      trend: "up",
+      market: "Mandi Gobindgarh",
+      lastUpdated: "2 hours ago",
+      quality: "FAQ",
+      volume: "2,500 quintals"
+    },
+    { 
+      commodity: "Rice (Basmati)", 
+      price: 4100, 
+      unit: "₹/quintal", 
+      change: "+150", 
+      changePercent: "+3.8%", 
+      trend: "up",
+      market: "Karnal Mandi",
+      lastUpdated: "1 hour ago",
+      quality: "Superior",
+      volume: "1,800 quintals"
+    },
+    { 
+      commodity: "Cotton", 
+      price: 6800, 
+      unit: "₹/quintal", 
+      change: "-120", 
+      changePercent: "-1.7%", 
+      trend: "down",
+      market: "Guntur Cotton Market",
+      lastUpdated: "3 hours ago",
+      quality: "Medium Staple",
+      volume: "850 quintals"
+    },
+    { 
+      commodity: "Maize", 
+      price: 1850, 
+      unit: "₹/quintal", 
+      change: "+25", 
+      changePercent: "+1.4%", 
+      trend: "up",
+      market: "Nizamabad Mandi",
+      lastUpdated: "4 hours ago",
+      quality: "Grade A",
+      volume: "3,200 quintals"
+    },
+    { 
+      commodity: "Sugarcane", 
+      price: 380, 
+      unit: "₹/quintal", 
+      change: "+10", 
+      changePercent: "+2.7%", 
+      trend: "up",
+      market: "Muzaffarnagar",
+      lastUpdated: "5 hours ago",
+      quality: "Good",
+      volume: "5,500 quintals"
+    },
+    { 
+      commodity: "Onion", 
+      price: 2200, 
+      unit: "₹/quintal", 
+      change: "-80", 
+      changePercent: "-3.5%", 
+      trend: "down",
+      market: "Nashik APMC",
+      lastUpdated: "1 hour ago",
+      quality: "Medium",
+      volume: "1,200 quintals"
+    }
+  ],
+  priceHistory: {
+    wheat: [
+      { date: "2024-01-01", price: 2100 },
+      { date: "2024-01-08", price: 2150 },
+      { date: "2024-01-15", price: 2120 },
+      { date: "2024-01-22", price: 2180 },
+      { date: "2024-01-29", price: 2250 }
+    ],
+    rice: [
+      { date: "2024-01-01", price: 3800 },
+      { date: "2024-01-08", price: 3950 },
+      { date: "2024-01-15", price: 3900 },
+      { date: "2024-01-22", price: 4050 },
+      { date: "2024-01-29", price: 4100 }
+    ]
+  },
+  demandForecast: [
+    { commodity: "Wheat", currentDemand: "High", projectedGrowth: "+5.2%", season: "Rabi", exportPotential: "Medium" },
+    { commodity: "Rice", currentDemand: "Very High", projectedGrowth: "+7.8%", season: "Kharif", exportPotential: "High" },
+    { commodity: "Cotton", currentDemand: "Medium", projectedGrowth: "+2.1%", season: "Kharif", exportPotential: "Very High" },
+    { commodity: "Maize", currentDemand: "High", projectedGrowth: "+4.5%", season: "Both", exportPotential: "Low" }
+  ],
+  bestMarkets: [
+    { name: "Delhi Azadpur Mandi", distance: "45 km", commission: "2.5%", facilities: ["Cold Storage", "Grading", "Weighing"] },
+    { name: "Chandigarh Grain Market", distance: "28 km", commission: "2.0%", facilities: ["Direct Payment", "Quality Testing"] },
+    { name: "Ludhiana Agricultural Market", distance: "62 km", commission: "3.0%", facilities: ["Insurance", "Transport"] }
+  ]
+};
+
+// Enhanced Dashboard Data
+export const mockDashboardStats = {
+  totalFields: 3,
+  totalArea: "12.5 hectares",
+  activeCrops: 4,
+  expectedRevenue: "₹4,85,000",
+  waterSaved: "23%",
+  fertilizesSaved: "18%",
+  currentSeason: "Kharif",
+  nextHarvest: "March 15, 2024",
+  totalInvestment: "₹2,15,000",
+  projectedProfit: "₹2,70,000"
+};
+
+export const mockFieldData = [
+  {
+    id: 1,
+    name: "North Field",
+    area: "5.0 hectares",
+    crop: "Wheat",
+    plantingDate: "2023-11-15",
+    expectedHarvest: "2024-03-15",
+    soilType: "Loamy",
+    irrigationMethod: "Drip",
+    currentPhase: "Maturity",
+    healthScore: 92,
+    expectedYield: "4.8 tons/ha",
+    progress: 85,
+    issues: [],
+    nextAction: "Harvest planning"
+  },
+  {
+    id: 2,
+    name: "South Field",
+    area: "4.5 hectares",
+    crop: "Rice",
+    plantingDate: "2023-06-20",
+    expectedHarvest: "2023-11-10",
+    soilType: "Clay",
+    irrigationMethod: "Flood",
+    currentPhase: "Harvested",
+    healthScore: 88,
+    expectedYield: "5.2 tons/ha",
+    progress: 100,
+    issues: ["Post-harvest storage"],
+    nextAction: "Prepare for next season"
+  },
+  {
+    id: 3,
+    name: "East Field",
+    area: "3.0 hectares",
+    crop: "Maize",
+    plantingDate: "2024-01-10",
+    expectedHarvest: "2024-05-15",
+    soilType: "Sandy Loam",
+    irrigationMethod: "Sprinkler",
+    currentPhase: "Vegetative",
+    healthScore: 94,
+    expectedYield: "6.5 tons/ha",
+    progress: 45,
+    issues: [],
+    nextAction: "Fertilizer application"
+  }
+];
+
+// Comprehensive Suggestions Data
+export const mockSuggestionsData = {
+  irrigation: {
+    title: "Smart Irrigation Schedule",
+    priority: "High",
+    savings: "₹15,000/month",
+    suggestions: [
+      {
+        title: "Morning Irrigation Optimization",
+        description: "Schedule irrigation between 5:00-7:00 AM when evaporation rates are lowest",
+        impact: "Save 25% water",
+        difficulty: "Easy",
+        timeRequired: "Immediate",
+        costSaving: "₹8,000/month"
+      },
+      {
+        title: "Soil Moisture Monitoring",
+        description: "Install moisture sensors to avoid over-watering and optimize irrigation timing",
+        impact: "Prevent root rot, optimize water usage",
+        difficulty: "Medium",
+        timeRequired: "1 week",
+        costSaving: "₹5,000/month"
+      },
+      {
+        title: "Drip Irrigation Upgrade",
+        description: "Convert flood irrigation to drip system for North Field",
+        impact: "40% water savings, better nutrient delivery",
+        difficulty: "Hard",
+        timeRequired: "1 month",
+        costSaving: "₹12,000/month"
+      }
+    ]
+  },
+  fertilizer: {
+    title: "Nutrient Management Plan",
+    priority: "Medium",
+    savings: "₹8,500/season",
+    suggestions: [
+      {
+        title: "Organic Matter Addition",
+        description: "Add 2 tons/hectare of well-decomposed farmyard manure before next planting",
+        impact: "Improve soil structure, reduce chemical fertilizer need by 30%",
+        difficulty: "Easy",
+        timeRequired: "Before planting",
+        costSaving: "₹6,000/season"
+      },
+      {
+        title: "Foliar Application Timing",
+        description: "Apply foliar fertilizers during cool morning hours for better absorption",
+        impact: "20% more effective nutrient uptake",
+        difficulty: "Easy",
+        timeRequired: "During spray schedule",
+        costSaving: "₹3,500/season"
+      }
+    ]
+  },
+  pestControl: {
+    title: "Integrated Pest Management",
+    priority: "Medium",
+    savings: "₹5,200/season",
+    suggestions: [
+      {
+        title: "Beneficial Insects",
+        description: "Introduce ladybugs and lacewings to control aphids naturally",
+        impact: "Reduce pesticide use by 60%",
+        difficulty: "Medium",
+        timeRequired: "2 weeks",
+        costSaving: "₹4,000/season"
+      },
+      {
+        title: "Neem-based Solutions",
+        description: "Use neem oil spray bi-weekly as preventive measure",
+        impact: "Organic pest control, safe for beneficial insects",
+        difficulty: "Easy",
+        timeRequired: "Regular schedule",
+        costSaving: "₹2,500/season"
+      }
+    ]
+  },
+  weatherBased: {
+    title: "Weather-Based Farming",
+    priority: "High",
+    suggestions: [
+      {
+        title: "Rain Forecast Optimization",
+        description: "Skip irrigation when 10mm+ rain expected within 24 hours",
+        impact: "Prevent waterlogging, save water costs",
+        difficulty: "Easy",
+        timeRequired: "Daily monitoring",
+        costSaving: "₹3,000/month"
+      },
+      {
+        title: "Temperature-based Spraying",
+        description: "Apply pesticides only when temperature is below 28°C",
+        impact: "Better chemical effectiveness, less crop stress",
+        difficulty: "Easy",
+        timeRequired: "Check before spraying",
+        costSaving: "₹2,000/season"
+      }
+    ]
+  }
+};
+
+// Government Schemes and Subsidies
+export const mockGovernmentSchemes = [
+  {
+    name: "PM-KISAN Scheme",
+    description: "Direct income support of ₹6,000 per year to farmer families",
+    eligibility: "All landholding farmer families",
+    benefit: "₹6,000/year",
+    applicationStatus: "Applied",
+    nextInstallment: "April 2024"
+  },
+  {
+    name: "Pradhan Mantri Fasal Bima Yojana",
+    description: "Crop insurance scheme providing comprehensive risk solution",
+    eligibility: "All farmers growing notified crops",
+    benefit: "Up to ₹2,00,000 coverage",
+    applicationStatus: "Not Applied",
+    deadline: "March 31, 2024"
+  },
+  {
+    name: "Kisan Credit Card",
+    description: "Easy access to credit for agricultural needs",
+    eligibility: "Farmers with land records",
+    benefit: "Low interest loans",
+    applicationStatus: "Approved",
+    creditLimit: "₹3,00,000"
+  }
+];
+
+// Weather Alerts and Advice
+export const mockWeatherAlerts = [
+  {
+    type: "Heavy Rainfall",
+    severity: "High",
+    timeframe: "Next 24-48 hours",
+    description: "Expected 60-80mm rainfall with possible hailstorm",
+    recommendations: [
+      "Harvest ready crops immediately if possible",
+      "Ensure proper drainage in fields",
+      "Protect standing crops with appropriate cover",
+      "Avoid fertilizer/pesticide application"
+    ],
+    affectedCrops: ["Wheat", "Mustard", "Gram"],
+    priority: "Urgent"
+  },
+  {
+    type: "Temperature Rise",
+    severity: "Medium",
+    timeframe: "Next 5-7 days",
+    description: "Temperature expected to rise above 35°C",
+    recommendations: [
+      "Increase irrigation frequency",
+      "Apply mulching to retain soil moisture",
+      "Avoid midday field activities",
+      "Monitor crops for heat stress symptoms"
+    ],
+    affectedCrops: ["Maize", "Vegetables"],
+    priority: "Medium"
+  }
+];

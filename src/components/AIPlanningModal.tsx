@@ -4,7 +4,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { FiX, FiDroplet, FiCalendar, FiTrendingUp } from 'react-icons/fi';
 import { GiWateringCan } from 'react-icons/gi';
 import { useTranslation } from 'react-i18next';
-import { fertilizerPlanData, irrigationPlanData } from '../mockData/mockData';
+import RealDataService from '../services/realDataService';
 
 interface AIPlanningModalProps {
   isOpen: boolean;
@@ -22,18 +22,22 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'schedule' | 'analytics' | 'savings'>('schedule');
 
+  // Get real data
+  const realFertilizerPlan = RealDataService.getFertilizerPlan();
+  const realIrrigationPlan = RealDataService.getIrrigationPlan();
+  
   const planData = type === 'fertilizer' ? {
     title: 'AI-Optimized Fertilizer Plan',
     icon: GiWateringCan,
     iconColor: 'text-purple-600',
     iconBg: 'bg-purple-100',
-    data: fertilizerPlanData
+    data: realFertilizerPlan
   } : {
     title: 'AI-Optimized Irrigation Plan',
     icon: FiDroplet,
     iconColor: 'text-blue-600',
     iconBg: 'bg-blue-100',
-    data: irrigationPlanData
+    data: realIrrigationPlan
   };
 
   const modalVariants = {
@@ -104,30 +108,30 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                 {type === 'fertilizer' ? (
                   <>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{fertilizerPlanData.currentPhase}</p>
+                      <p className="text-2xl font-bold">{realFertilizerPlan.currentPhase}</p>
                       <p className="text-white/80">Current Phase</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-success-green">{fertilizerPlanData.costSavings.efficiency}</p>
+                      <p className="text-2xl font-bold text-success-green">{realFertilizerPlan.costSavings.efficiency}</p>
                       <p className="text-white/80">Efficiency Boost</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{fertilizerPlanData.costSavings.yearly}</p>
+                      <p className="text-2xl font-bold">{realFertilizerPlan.costSavings.yearly}</p>
                       <p className="text-white/80">Annual Savings</p>
                     </div>
                   </>
                 ) : (
                   <>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{irrigationPlanData.waterSaved}%</p>
+                      <p className="text-2xl font-bold">{realIrrigationPlan.waterSaved}%</p>
                       <p className="text-white/80">Water Saved</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{irrigationPlanData.soilMoisture}%</p>
+                      <p className="text-2xl font-bold">{realIrrigationPlan.soilMoisture}%</p>
                       <p className="text-white/80">Soil Moisture</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold">{irrigationPlanData.nextIrrigation}</p>
+                      <p className="text-2xl font-bold">{realIrrigationPlan.nextIrrigation}</p>
                       <p className="text-white/80">Next Schedule</p>
                     </div>
                   </>
@@ -177,7 +181,7 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                       <div className="h-80">
                         <ResponsiveContainer width="100%" height="100%">
                           {type === 'fertilizer' ? (
-                            <BarChart data={fertilizerPlanData.schedule}>
+                            <BarChart data={planData.data.schedule}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                               <XAxis dataKey="week" stroke="#6b7280" fontSize={12} />
                               <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'kg/ha', angle: -90, position: 'insideLeft' }} />
@@ -194,7 +198,7 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                               <Bar dataKey="potassium" fill="#f59e0b" name="Potassium (K)" />
                             </BarChart>
                           ) : (
-                            <BarChart data={irrigationPlanData.schedule}>
+                            <BarChart data={planData.data.schedule}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                               <XAxis dataKey="day" stroke="#6b7280" fontSize={12} />
                               <YAxis stroke="#6b7280" fontSize={12} label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
@@ -224,19 +228,19 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                             <div className="space-y-3">
                               <div className="flex justify-between items-center">
                                 <span className="text-gray-600">Nitrogen (N)</span>
-                                <span className="font-bold text-success-green">{fertilizerPlanData.currentNutrients.nitrogen} ppm</span>
+                                <span className="font-bold text-success-green">{realFertilizerPlan.currentNutrients.nitrogen} ppm</span>
                               </div>
                               <div className="flex justify-between items-center">
                                 <span className="text-gray-600">Phosphorus (P)</span>
-                                <span className="font-bold text-warning-orange">{fertilizerPlanData.currentNutrients.phosphorus} ppm</span>
+                                <span className="font-bold text-warning-orange">{realFertilizerPlan.currentNutrients.phosphorus} ppm</span>
                               </div>
                               <div className="flex justify-between items-center">
                                 <span className="text-gray-600">Potassium (K)</span>
-                                <span className="font-bold text-info-blue">{fertilizerPlanData.currentNutrients.potassium} ppm</span>
+                                <span className="font-bold text-info-blue">{realFertilizerPlan.currentNutrients.potassium} ppm</span>
                               </div>
                               <div className="flex justify-between items-center pt-2 border-t">
                                 <span className="text-gray-600">pH Level</span>
-                                <span className="font-bold text-foreground">{fertilizerPlanData.currentNutrients.pH}</span>
+                                <span className="font-bold text-foreground">{realFertilizerPlan.currentNutrients.pH}</span>
                               </div>
                             </div>
                           </div>
@@ -250,9 +254,9 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                                   <FiCalendar className="text-ai-purple" />
                                   <span className="font-medium text-ai-purple">AI Recommendation</span>
                                 </div>
-                                <p className="text-sm text-foreground">{fertilizerPlanData.nextApplication}</p>
+                                <p className="text-sm text-foreground">{realFertilizerPlan.nextApplication}</p>
                                 <p className="text-sm text-muted-foreground mt-2">
-                                  Apply during {fertilizerPlanData.currentPhase} for optimal nutrient uptake.
+                                  Apply during {realFertilizerPlan.currentPhase} for optimal nutrient uptake.
                                 </p>
                               </div>
                             </div>
@@ -264,7 +268,7 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                           <div className="bg-white border border-gray-200 rounded-xl p-6">
                             <h4 className="text-lg font-semibold text-foreground mb-4">AI Insights</h4>
                             <div className="space-y-3">
-                              {irrigationPlanData.insights.map((insight, index) => (
+                              {realIrrigationPlan.insights.map((insight: string, index: number) => (
                                 <div key={index} className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
                                   <FiCalendar className="text-ai-purple mt-1 flex-shrink-0" size={16} />
                                   <p className="text-sm text-foreground">{insight}</p>
@@ -279,18 +283,18 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                             <div className="space-y-4">
                               <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
                                 <span className="text-foreground">Current Soil Moisture</span>
-                                <span className="font-bold text-info-blue">{irrigationPlanData.soilMoisture}%</span>
+                                <span className="font-bold text-info-blue">{realIrrigationPlan.soilMoisture}%</span>
                               </div>
                               <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
                                 <span className="text-foreground">Water Saved</span>
-                                <span className="font-bold text-success-green">{irrigationPlanData.waterSaved}%</span>
+                                <span className="font-bold text-success-green">{realIrrigationPlan.waterSaved}%</span>
                               </div>
                               <div className="p-4 bg-ai-purple/5 rounded-lg border border-ai-purple/20">
                                 <p className="text-sm text-foreground">
-                                  <strong>Next Irrigation:</strong> {irrigationPlanData.nextIrrigation}
+                                  <strong>Next Irrigation:</strong> {realIrrigationPlan.nextIrrigation}
                                 </p>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                  Duration: {irrigationPlanData.duration}
+                                  Duration: {realIrrigationPlan.duration}
                                 </p>
                               </div>
                             </div>
@@ -327,22 +331,22 @@ const AIPlanningModal: React.FC<AIPlanningModalProps> = ({
                         {type === 'fertilizer' ? (
                           <div className="space-y-4">
                             <div className="text-center">
-                              <p className="text-3xl font-bold text-success-green">{fertilizerPlanData.costSavings.yearly}</p>
+                              <p className="text-3xl font-bold text-success-green">{realFertilizerPlan.costSavings.yearly}</p>
                               <p className="text-muted-foreground">Annual Savings</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-2xl font-bold text-success-green">{fertilizerPlanData.costSavings.monthly}</p>
+                              <p className="text-2xl font-bold text-success-green">{realFertilizerPlan.costSavings.monthly}</p>
                               <p className="text-muted-foreground">Monthly Savings</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-2xl font-bold text-success-green">{fertilizerPlanData.costSavings.efficiency}</p>
+                              <p className="text-2xl font-bold text-success-green">{realFertilizerPlan.costSavings.efficiency}</p>
                               <p className="text-muted-foreground">Efficiency Improvement</p>
                             </div>
                           </div>
                         ) : (
                           <div className="space-y-4">
                             <div className="text-center">
-                              <p className="text-3xl font-bold text-success-green">{irrigationPlanData.waterSaved}%</p>
+                              <p className="text-3xl font-bold text-success-green">{realIrrigationPlan.waterSaved}%</p>
                               <p className="text-muted-foreground">Water Savings</p>
                             </div>
                             <div className="text-center">

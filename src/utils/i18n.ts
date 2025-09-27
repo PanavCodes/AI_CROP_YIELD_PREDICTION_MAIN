@@ -30,8 +30,7 @@ const resources = {
         dataInput: "Data Input",
         suggestions: "Suggestions",
         profile: "Profile",
-        market: "Market",
-        community: "Community"
+        market: "Market"
       },
       
       // Auth
@@ -214,9 +213,7 @@ const resources = {
         fieldName: "Field name/ID",
         fieldSize: "Field size (hectares)",
         irrigationAvailability: "Irrigation availability",
-        fieldManagement: "Field Management",
         cropsForThisField: "Crops for this field",
-        currentField: "Current Field",
         savedFieldProfiles: "Saved Field Profiles",
         newProfile: "New Profile",
         noProfilesSaved: "No profiles saved yet.",
@@ -230,16 +227,10 @@ const resources = {
         autoDetectLocationHint: "Click the location icon to auto-detect your area and set weather location",
         removeFieldTitle: "Remove field",
         plantingDateLabel: "Planting date (dd-mm-yyyy)",
-        fertilizersUsedLabel: "Fertilizers used (comma-separated)",
-        pesticidesUsedLabel: "Pesticides/herbicides used (comma-separated)",
-        previousCropLabel: "Previous crop (optional)",
-        soilTestLabel: "Soil test results (optional)",
+        soilTestLabel: "Soil test results",
         fieldSizePlaceholder: "5.0",
         fieldNamePlaceholder: "North Field",
         plantingDatePlaceholder: "15-06-2025",
-        fertilizerPlaceholder: "NPK, Urea, DAP",
-        pesticidePlaceholder: "Neem Oil",
-        previousCropPlaceholder: "Wheat",
         soilNPlaceholder: "e.g., 85",
         soilPPlaceholder: "e.g., 40",
         soilKPlaceholder: "e.g., 42",

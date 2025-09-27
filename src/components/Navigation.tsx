@@ -76,8 +76,8 @@ const Navigation: React.FC = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center flex-1 justify-center max-w-4xl mx-6">
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-xl p-1 w-full">
+          <div className="hidden md:flex items-center flex-1 justify-center max-w-5xl mx-8">
+            <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-2 w-full border border-gray-200 dark:border-gray-600/50 backdrop-blur-sm">
             {navItems.map((item, index) => {
               const Icon = item.icon;
               return item.disabled ? (
@@ -86,11 +86,11 @@ const Navigation: React.FC = () => {
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05, duration: 0.2 }}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-gray-400 dark:text-gray-500 cursor-not-allowed text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl text-gray-400 dark:text-gray-500 cursor-not-allowed text-sm font-medium transition-all duration-200"
                   title={t('navigation.completeDataInputFirst')}
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{item.label}</span>
+                  <span className="hidden lg:inline whitespace-nowrap">{item.label}</span>
                 </motion.div>
               ) : (
                 <motion.div
@@ -98,20 +98,22 @@ const Navigation: React.FC = () => {
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05, duration: 0.2 }}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
                   className="flex-1"
                 >
                   <Link
                     to={item.path}
-                    className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium w-full ${
+                    className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl transition-all duration-300 text-sm font-medium w-full group ${
                       location.pathname === item.path
-                        ? 'bg-leaf-green text-white shadow-md'
-                        : 'text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600 hover:shadow-sm'
+                        ? 'bg-gradient-to-r from-leaf-green to-green-600 text-white shadow-lg shadow-green-500/25 border border-green-400'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-600/80 hover:shadow-md hover:border hover:border-gray-300 dark:hover:border-gray-500 bg-transparent'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{item.label}</span>
+                    <Icon className={`w-4 h-4 transition-transform duration-200 ${
+                      location.pathname === item.path ? '' : 'group-hover:scale-110'
+                    }`} />
+                    <span className="hidden lg:inline whitespace-nowrap">{item.label}</span>
                   </Link>
                 </motion.div>
               );
@@ -120,13 +122,13 @@ const Navigation: React.FC = () => {
           </div>
 
           {/* Right side - Language & Profile */}
-          <div className="hidden md:flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <FiGlobe className="text-gray-600 dark:text-gray-400" />
+          <div className="hidden md:flex items-center gap-6">
+            <div className="flex items-center gap-3 px-3 py-2 bg-gray-100 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600/50">
+              <FiGlobe className="text-gray-600 dark:text-gray-400 w-4 h-4" />
               <select
                 value={i18n.language}
                 onChange={(e) => changeLanguage(e.target.value)}
-                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
+                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer pr-2"
               >
                 <option value="en">EN</option>
                 <option value="hi">हि</option>
@@ -134,22 +136,28 @@ const Navigation: React.FC = () => {
             </div>
             
             {/* Theme Toggle */}
-            <ThemeToggle />
+            <div className="p-1">
+              <ThemeToggle />
+            </div>
             
             {/* Notification Icon */}
-            <NotificationIcon notifications={notifications} />
+            <div className="p-1">
+              <NotificationIcon notifications={notifications} />
+            </div>
             
             {/* Profile Dropdown */}
             <div className="relative" ref={profileDropdownRef}>
               <button
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none border border-transparent hover:border-gray-200 dark:hover:border-gray-600 shadow-sm hover:shadow-md"
               >
-                <div className="w-8 h-8 bg-gradient-to-r from-leaf-green to-green-600 rounded-full flex items-center justify-center text-white font-medium text-sm">
+                <div className="w-9 h-9 bg-gradient-to-br from-leaf-green via-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-md ring-2 ring-white dark:ring-gray-800">
                   {userName.charAt(0).toUpperCase()}
                 </div>
                 <span className="text-sm font-medium hidden lg:block">{userName}</span>
-                <span className="text-xs">▼</span>
+                <span className="text-xs text-gray-400 transition-transform duration-200 transform">
+                  {profileDropdownOpen ? '▲' : '▼'}
+                </span>
               </button>
               
               {/* Dropdown Menu */}
